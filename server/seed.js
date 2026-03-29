@@ -1,10 +1,10 @@
-const { initDB } = require('./db');
+const { initDB } = require('./src/config/db');
 const bcrypt = require('bcryptjs');
 
 const db = initDB();
 
 // Clear existing data
-db.exec('DELETE FROM alerts; DELETE FROM medications; DELETE FROM pharmacies; DELETE FROM users;');
+db.exec('DELETE FROM alerts; DELETE FROM prescriptions; DELETE FROM customers; DELETE FROM sales; DELETE FROM medication_batches; DELETE FROM purchase_orders; DELETE FROM suppliers; DELETE FROM medications; DELETE FROM profit_settings; DELETE FROM pharmacies; DELETE FROM users;');
 
 const hashPassword = (pw) => bcrypt.hashSync(pw, 10);
 
@@ -12,18 +12,19 @@ const hashPassword = (pw) => bcrypt.hashSync(pw, 10);
 const insertUser = db.prepare('INSERT INTO users (name, email, password_hash, role, phone) VALUES (?, ?, ?, ?, ?)');
 const insertPharmacy = db.prepare('INSERT INTO pharmacies (user_id, name, address, lat, lng, phone, open_hours) VALUES (?, ?, ?, ?, ?, ?, ?)');
 const insertMed = db.prepare('INSERT INTO medications (pharmacy_id, name, dosage, cost_price, price, quantity, min_stock_level, category, description, expiry_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-const insertSale = db.prepare('INSERT INTO sales (pharmacy_id, medication_id, quantity, unit_price, total_price, profit, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+const insertBatch = db.prepare('INSERT INTO medication_batches (medication_id, batch_number, expiry_date, quantity, supplier_id) VALUES (?, ?, ?, ?, ?)');
+const insertSale = db.prepare('INSERT INTO sales (pharmacy_id, medication_id, batch_id, quantity, unit_price, total_price, profit, tax_amount, net_profit, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
 const insertProfitSetting = db.prepare('INSERT INTO profit_settings (pharmacy_id, default_margin_percentage) VALUES (?, ?)');
 
 const pharmaciesData = [
-    { name: 'صيدلية الأمل (Casablanca)', address: 'شارع الزرقطوني، الدار البيضاء', lat: 33.5898, lng: -7.6038, phone: '0522123456', hours: '08:00-22:00' },
-    { name: 'صيدلية النور (Rabat)', address: 'شارع محمد الخامس، الرباط', lat: 34.0209, lng: -6.8416, phone: '0537234567', hours: '08:00-23:00' },
-    { name: 'صيدلية الشفاء (Marrakech)', address: 'جيليز، مراكش', lat: 31.6295, lng: -7.9811, phone: '0524345678', hours: '07:30-21:00' },
-    { name: 'صيدلية السلام (Fes)', address: 'شارع الحسن الثاني، فاس', lat: 34.0331, lng: -5.0003, phone: '0535456789', hours: '08:00-22:00' },
-    { name: 'صيدلية الرحمة (Tangier)', address: 'بوليفار، طنجة', lat: 35.7595, lng: -5.8330, phone: '0539567890', hours: '09:00-23:00' },
-    { name: 'صيدلية البركة (Agadir)', address: 'حي تالبرجت، أكادير', lat: 30.4278, lng: -9.5981, phone: '0528678901', hours: '08:00-21:30' },
-    { name: 'صيدلية الياسمين (Meknes)', address: 'حمرية، مكناس', lat: 33.8938, lng: -5.5484, phone: '0535789012', hours: '07:00-22:00' },
-    { name: 'صيدلية الحكمة (Oujda)', address: 'شارع محمد الخامس، وجدة', lat: 34.6814, lng: -1.9086, phone: '0536890123', hours: '08:30-22:30' },
+    { name: 'صيدلية الأمل (Casablanca)', slug: 'alamal', address: 'شارع الزرقطوني، الدار البيضاء', lat: 33.5898, lng: -7.6038, phone: '0522123456', hours: '08:00-22:00' },
+    { name: 'صيدلية النور (Rabat)', slug: 'annour', address: 'شارع محمد الخامس، الرباط', lat: 34.0209, lng: -6.8416, phone: '0537234567', hours: '08:00-23:00' },
+    { name: 'صيدلية الشفاء (Marrakech)', slug: 'alshifa', address: 'جيليز، مراكش', lat: 31.6295, lng: -7.9811, phone: '0524345678', hours: '07:30-21:00' },
+    { name: 'صيدلية السلام (Fes)', slug: 'assalam', address: 'شارع الحسن الثاني، فاس', lat: 34.0331, lng: -5.0003, phone: '0535456789', hours: '08:00-22:00' },
+    { name: 'صيدلية الرحمة (Tangier)', slug: 'arrahma', address: 'بوليفار، طنجة', lat: 35.7595, lng: -5.8330, phone: '0539567890', hours: '09:00-23:00' },
+    { name: 'صيدلية البركة (Agadir)', slug: 'albaraka', address: 'حي تالبرجت، أكادير', lat: 30.4278, lng: -9.5981, phone: '0528678901', hours: '08:00-21:30' },
+    { name: 'صيدلية الياسمين (Meknes)', slug: 'alyasmine', address: 'حمرية، مكناس', lat: 33.8938, lng: -5.5484, phone: '0535789012', hours: '07:00-22:00' },
+    { name: 'صيدلية الحكمة (Oujda)', slug: 'alhikma', address: 'شارع محمد الخامس، وجدة', lat: 34.6814, lng: -1.9086, phone: '0536890123', hours: '08:30-22:30' },
 ];
 
 const medications = [
@@ -54,7 +55,7 @@ const seedTransaction = db.transaction(() => {
     const pharmacyIds = [];
 
     for (const p of pharmaciesData) {
-        const email = p.name.replace(/\s/g, '').replace(/\(.*\)/, '') + '@saydaliya.ma';
+        const email = p.slug + '@saydaliya.ma';
         const userResult = insertUser.run(p.name, email, hashPassword('password123'), 'pharmacy', p.phone);
         const pharmacyResult = insertPharmacy.run(userResult.lastInsertRowid, p.name, p.address, p.lat, p.lng, p.phone, p.hours);
         const pid = pharmacyResult.lastInsertRowid;
@@ -93,24 +94,42 @@ const seedTransaction = db.transaction(() => {
                 expiry.toISOString().split('T')[0]
             );
 
+            const medId = medResult.lastInsertRowid;
+
+            // Create a primary batch for this medicine
+            const batchResult = insertBatch.run(
+                medId,
+                'BATCH-' + Math.random().toString(36).substring(7).toUpperCase(),
+                expiry.toISOString().split('T')[0],
+                quantity,
+                null
+            );
+
+            const batchId = batchResult.lastInsertRowid;
+
             // Add some random sales for the last 30 days
             if (quantity > 20) {
                 for (let i = 0; i < 5; i++) {
                     const saleQty = 1 + Math.floor(Math.random() * 3);
                     const salePrice = Math.round(price) * saleQty;
                     const saleCost = Math.round(costPrice) * saleQty;
+                    const taxAmount = salePrice * 0.07;
                     const profit = salePrice - saleCost;
+                    const netProfit = profit - taxAmount;
 
                     const saleDate = new Date();
                     saleDate.setDate(saleDate.getDate() - Math.floor(Math.random() * 30));
 
                     insertSale.run(
                         pharmacyId,
-                        medResult.lastInsertRowid,
+                        medId,
+                        batchId,
                         saleQty,
                         Math.round(price),
                         salePrice,
                         profit,
+                        taxAmount,
+                        netProfit,
                         saleDate.toISOString()
                     );
                 }
@@ -120,6 +139,11 @@ const seedTransaction = db.transaction(() => {
 
     // Create a test regular user
     insertUser.run('مستخدم تجريبي', 'user@saydaliya.ma', hashPassword('password123'), 'user', '0666000000');
+
+    // Create a test admin pharmacy account
+    const adminUser = insertUser.run('مدير النظام (Admin)', 'admin@saydaliya.com', hashPassword('admin123'), 'pharmacy', '0600000000');
+    const adminPharmacy = insertPharmacy.run(adminUser.lastInsertRowid, 'صيدلية التجربة (Demo)', 'الدار البيضاء، المغرب', 33.5731, -7.5898, '0522000000', '08:00-22:00');
+    insertProfitSetting.run(adminPharmacy.lastInsertRowid, 25);
 });
 
 seedTransaction();
@@ -127,7 +151,7 @@ seedTransaction();
 console.log('✅ Database seeded successfully!');
 console.log(`   - ${pharmaciesData.length} pharmacies created`);
 console.log('   - Medications distributed across pharmacies');
-console.log('   - Test user created: user@saydaliya.dz / password123');
-console.log('   - Pharmacy login example: صيدليةالشفاء@saydaliya.dz / password123');
+console.log('   - Test user created: user@saydaliya.ma / password123');
+console.log('   - Pharmacy login example: alamal@saydaliya.ma / password123');
 
 db.close();

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import i18n from '../i18n';
 
 const SettingsContext = createContext();
 
@@ -13,6 +14,9 @@ export const SettingsProvider = ({ children }) => {
 
     useEffect(() => {
         localStorage.setItem('language', language);
+        i18n.changeLanguage(language);
+        document.documentElement.setAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
+        document.documentElement.setAttribute('lang', language);
     }, [language]);
 
     return (

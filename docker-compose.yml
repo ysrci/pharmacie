@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: saydaliya_db
+    restart: always
+    environment:
+      POSTGRES_USER: saydaliya_user
+      POSTGRES_PASSWORD: saydaliya_password
+      POSTGRES_DB: saydaliya
+    ports:
+      - "5432:5432"
+    volumes:
+      - saydaliya_data:/var/lib/postgresql/data
+
+volumes:
+  saydaliya_data:

@@ -1,42 +1,15 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 
 const SalesPanel = ({ medications, onSaleComplete }) => {
+    const { t, i18n } = useTranslation();
     const [searchTerm, setSearchTerm] = useState('');
     const [cart, setCart] = useState([]);
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const { language } = useSettings();
-
-    const t = {
-        ar: {
-            searchSale: 'ابحث عن منتج للبيع...',
-            stock: 'المخزون',
-            addToCart: 'إضافة للسلة',
-            cartTitle: 'سلة البيع',
-            emptyCart: 'السلة فارغة',
-            total: 'المجموع',
-            success: 'تم تسجيل البيع بنجاح!',
-            processing: 'جاري المعالجة...',
-            confirmSale: 'تأكيد عملية البيع',
-            currency: 'د.م'
-        },
-        fr: {
-            searchSale: 'Chercher un produit à vendre...',
-            stock: 'Stock',
-            addToCart: 'Ajouter au panier',
-            cartTitle: 'Panier de vente',
-            emptyCart: 'Le panier est vide',
-            total: 'Total',
-            success: 'Vente enregistrée avec succès !',
-            processing: 'Traitement...',
-            confirmSale: 'Confirmer la vente',
-            currency: 'MAD'
-        }
-    };
-
-    const currentT = t[language];
 
     const filteredMeds = medications.filter(m =>
         m.name.toLowerCase().includes(searchTerm.toLowerCase()) && m.quantity > 0
@@ -96,14 +69,14 @@ const SalesPanel = ({ medications, onSaleComplete }) => {
     };
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '1.5rem', height: 'calc(100vh - 250px)', direction: language === 'ar' ? 'rtl' : 'ltr' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '1.5rem', height: 'calc(100vh - 250px)', direction: i18n.dir() }}>
             <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ position: 'relative' }}>
-                    <Search size={18} style={{ position: 'absolute', [language === 'ar' ? 'right' : 'left']: '1rem', top: '1rem', color: 'var(--text-muted)' }} />
+                    <Search size={18} style={{ position: 'absolute', [i18n.dir() === 'rtl' ? 'right' : 'left']: '1rem', top: '1rem', color: 'var(--text-muted)' }} />
                     <input
                         type="text"
-                        placeholder={currentT.searchSale}
-                        style={{ [language === 'ar' ? 'paddingRight' : 'paddingLeft']: '2.8rem' }}
+                        placeholder={t('dashboard.searchSale')}
+                        style={{ [i18n.dir() === 'rtl' ? 'paddingRight' : 'paddingLeft']: '2.8rem' }}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -114,30 +87,30 @@ const SalesPanel = ({ medications, onSaleComplete }) => {
                         <div key={med.id} className="glass" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid var(--border)', textAlign: 'inherit' }}>
                             <div>
                                 <h4 style={{ margin: '0 0 0.2rem' }}>{med.name}</h4>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{currentT.stock}: {med.quantity}</div>
-                                <div style={{ fontSize: '1.1rem', fontWeight: '800', margin: '0.5rem 0', color: 'var(--primary)' }}>{med.price} {currentT.currency}</div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('common.quantity')}: {med.quantity}</div>
+                                <div style={{ fontSize: '1.1rem', fontWeight: '800', margin: '0.5rem 0', color: 'var(--primary)' }}>{med.price} {t('common.currency')}</div>
                             </div>
                             <button
                                 onClick={() => addToCart(med)}
                                 className="btn-primary"
                                 style={{ width: '100%', padding: '0.5rem', fontSize: '0.85rem' }}
                             >
-                                {currentT.addToCart}
+                                {t('dashboard.addToCart')}
                             </button>
                         </div>
                     ))}
                 </div>
             </div>
 
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', border: '1px solid var(--primary)', textAlign: language === 'ar' ? 'right' : 'left' }}>
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', border: '1px solid var(--primary)', textAlign: 'inherit' }}>
                 <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
                     <ShoppingCart size={20} />
-                    {currentT.cartTitle}
+                    {t('dashboard.cartTitle')}
                 </h3>
 
                 <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                     {cart.length === 0 ? (
-                        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>{currentT.emptyCart}</p>
+                        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>{t('dashboard.emptyCart')}</p>
                     ) : (
                         cart.map(item => (
                             <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem', borderBottom: '1px solid var(--border)' }}>
@@ -158,13 +131,13 @@ const SalesPanel = ({ medications, onSaleComplete }) => {
 
                 <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '2px dashed var(--border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', fontWeight: '800', marginBottom: '1rem' }}>
-                        <span>{currentT.total}:</span>
-                        <span>{total} {currentT.currency}</span>
+                        <span>{t('common.total')}:</span>
+                        <span>{total} {t('common.currency')}</span>
                     </div>
                     {success ? (
                         <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '1rem', borderRadius: '12px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                             <CheckCircle size={20} />
-                            <span>{currentT.success}</span>
+                            <span>{t('dashboard.saleSuccess')}</span>
                         </div>
                     ) : (
                         <button
@@ -173,7 +146,7 @@ const SalesPanel = ({ medications, onSaleComplete }) => {
                             className="btn-primary"
                             style={{ width: '100%', padding: '1rem' }}
                         >
-                            {loading ? currentT.processing : currentT.confirmSale}
+                            {loading ? t('common.processing') : t('dashboard.confirmSale')}
                         </button>
                     )}
                 </div>
