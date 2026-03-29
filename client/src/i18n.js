@@ -50,7 +50,11 @@ const resources = {
                 "total": "المجموع",
                 "actions": "إجراءات",
                 "confirmDelete": "هل أنت متأكد من الحذف؟",
-                "processing": "جاري المعالجة..."
+                "processing": "جاري المعالجة...",
+                "managerAccess": "دخول المدير",
+                "enterPin": "الرجاء إدخال رمز التحقق المكون من 4 أرقام",
+                "invalidPin": "رمز التحقق غير صحيح!",
+                "confirm": "تأكيد"
             }
         }
     },
@@ -101,7 +105,11 @@ const resources = {
                 "total": "Total",
                 "actions": "Actions",
                 "confirmDelete": "Confirmer la suppression ?",
-                "processing": "Traitement..."
+                "processing": "Traitement...",
+                "managerAccess": "Accès Administrateur",
+                "enterPin": "Veuillez entrer le code PIN à 4 chiffres",
+                "invalidPin": "Code PIN invalide !",
+                "confirm": "Confirmer"
             }
         }
     },
@@ -152,7 +160,11 @@ const resources = {
                 "total": "Total",
                 "actions": "Actions",
                 "confirmDelete": "Are you sure you want to delete?",
-                "processing": "Processing..."
+                "processing": "Processing...",
+                "managerAccess": "Manager Access",
+                "enterPin": "Please enter the 4-digit PIN",
+                "invalidPin": "Invalid PIN!",
+                "confirm": "Confirm"
             }
         }
     }

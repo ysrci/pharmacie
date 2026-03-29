@@ -14,7 +14,7 @@ import autoTable from 'jspdf-autotable';
 
 const PharmacyDashboard = () => {
     const { t, i18n } = useTranslation();
-    const [activeTab, setActiveTab] = useState('overview');
+    const [activeTab, setActiveTab] = useState('sales');
     const [medications, setMedications] = useState({ rows: [], total: 0 });
     const [sales, setSales] = useState({ rows: [], total: 0 });
     const [auditLogs, setAuditLogs] = useState({ rows: [], total: 0 });
@@ -25,6 +25,11 @@ const PharmacyDashboard = () => {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isAuthorized, setIsAuthorized] = useState(false);
+    const [showPinModal, setShowPinModal] = useState(false);
+    const [pinInput, setPinInput] = useState('');
+    const [pinError, setPinError] = useState(false);
+    const [pendingTab, setPendingTab] = useState(null);
 
     // Pagination State
     const [medPage, setMedPage] = useState(0);
@@ -87,6 +92,68 @@ const PharmacyDashboard = () => {
         setLoading(false);
     };
 
+    const handlePinSubmit = (val = pinInput) => {
+        if (val === '1234') {
+            setIsAuthorized(true);
+            setShowPinModal(false);
+            setPinInput('');
+            setPinError(false);
+            if (pendingTab) {
+                setActiveTab(pendingTab);
+                setPendingTab(null);
+            }
+        } else {
+            setPinError(true);
+            setPinInput('');
+        }
+    };
+
+    const handlePinChange = (e) => {
+        const val = e.target.value;
+        setPinInput(val);
+        if (val.length === 4) {
+            handlePinSubmit(val);
+        }
+    };
+
+    const requestManagerAccess = (tab) => {
+        setPendingTab(tab);
+        setShowPinModal(true);
+    };
+
+    const renderPinModal = () => (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+            background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(30px)',
+            display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 6000
+        }}>
+            <div className="card" style={{ width: '380px', height: '380px', textAlign: 'center', padding: '3rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', borderRadius: '30px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
+                <div style={{ width: '64px', height: '64px', background: 'rgba(16,185,129,0.1)', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+                    <SettingsIcon className="text-primary" size={32} />
+                </div>
+                <h2 style={{ marginBottom: '0.5rem', fontWeight: 800, fontSize: '1.5rem' }}>{t('common.managerAccess')}</h2>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '2.5rem', fontSize: '0.95rem' }}>{t('common.enterPin')}</p>
+
+                <input
+                    type="password"
+                    autoFocus
+                    value={pinInput}
+                    onChange={handlePinChange}
+                    placeholder="****"
+                    maxLength={4}
+                    style={{
+                        width: '100%', fontSize: '2.5rem', textAlign: 'center', letterSpacing: '0.8rem',
+                        padding: '1.2rem', borderRadius: '20px', border: pinError ? '2px solid #ef4444' : '2px solid var(--border)',
+                        background: 'rgba(0,0,0,0.05)', marginBottom: '1.5rem'
+                    }}
+                />
+                {pinError && <p style={{ color: '#ef4444', marginBottom: '1rem', fontSize: '0.9rem', fontWeight: 600 }}>{t('common.invalidPin')}</p>}
+
+                <button type="button" onClick={() => { setShowPinModal(false); setPendingTab(null); setPinInput(''); setPinError(false); }} className="btn-secondary" style={{ width: '100%', marginTop: 'auto' }}>{t('common.cancel')}</button>
+            </div>
+        </div>
+    );
+
     const Pagination = ({ current, total, onPageChange }) => {
         const totalPages = Math.ceil(total / pageSize);
         if (totalPages <= 1) return null;
@@ -130,6 +197,123 @@ const PharmacyDashboard = () => {
             fetchData();
         } catch (err) { console.error(err); }
     };
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const token = localStorage.getItem('token');
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+
+            let url = '';
+            let method = editingMed ? 'PUT' : 'POST';
+
+            if (modalType === 'medication') {
+                url = editingMed ? `/api/pharmacy/medications/${editingMed.id}` : '/api/pharmacy/medications';
+            } else if (modalType === 'supplier') {
+                url = '/api/pharmacy/suppliers';
+            } else if (modalType === 'customer') {
+                url = '/api/pharmacy/customers';
+            }
+
+            const res = await fetch(url, {
+                method,
+                headers,
+                body: JSON.stringify(formData)
+            });
+
+            if (res.ok) {
+                setShowModal(false);
+                fetchData();
+            } else {
+                const err = await res.json();
+                alert(err.error || 'Operation failed');
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const renderModal = () => (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
+            display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 5000
+        }}>
+            <div className="card" style={{ width: '90%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', padding: '2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                    <h2 style={{ fontWeight: 800 }}>{editingMed ? t('common.edit') : t('common.add')} {t(`dashboard.${modalType}`)}</h2>
+                    <button onClick={() => setShowModal(false)} className="btn-icon"><X size={20} /></button>
+                </div>
+
+                <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.2rem' }}>
+                    {modalType === 'medication' && (
+                        <>
+                            <div style={{ gridColumn: '1 / span 2' }}>
+                                <label className="stat-label">{t('dashboard.product')}</label>
+                                <input className="search-wrapper" style={{ width: '100%' }} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
+                            </div>
+                            <div>
+                                <label className="stat-label">Dosage</label>
+                                <input className="search-wrapper" style={{ width: '100%' }} value={formData.dosage} onChange={e => setFormData({ ...formData, dosage: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="stat-label">{t('dashboard.category')}</label>
+                                <select className="search-wrapper" style={{ width: '100%' }} value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
+                                    <option value="otc">OTC</option>
+                                    <option value="prescription">Prescription</option>
+                                    <option value="supplement">Supplement</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="stat-label">{t('dashboard.costPrice')}</label>
+                                <input type="number" step="0.01" className="search-wrapper" style={{ width: '100%' }} value={formData.cost_price} onChange={e => setFormData({ ...formData, cost_price: e.target.value })} required />
+                            </div>
+                            <div>
+                                <label className="stat-label">{t('dashboard.sellingPrice')}</label>
+                                <input type="number" step="0.01" className="search-wrapper" style={{ width: '100%' }} value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} required />
+                            </div>
+                            <div>
+                                <label className="stat-label">{t('common.quantity')}</label>
+                                <input type="number" className="search-wrapper" style={{ width: '100%' }} value={formData.quantity} onChange={e => setFormData({ ...formData, quantity: e.target.value })} required />
+                            </div>
+                            <div>
+                                <label className="stat-label">Stock Alert Level</label>
+                                <input type="number" className="search-wrapper" style={{ width: '100%' }} value={formData.min_stock_level} onChange={e => setFormData({ ...formData, min_stock_level: e.target.value })} />
+                            </div>
+                            <div style={{ gridColumn: '1 / span 2' }}>
+                                <label className="stat-label">{t('dashboard.expiry')}</label>
+                                <input type="date" className="search-wrapper" style={{ width: '100%' }} value={formData.expiry_date} onChange={e => setFormData({ ...formData, expiry_date: e.target.value })} />
+                            </div>
+                        </>
+                    )}
+
+                    {(modalType === 'supplier' || modalType === 'customer') && (
+                        <>
+                            <div style={{ gridColumn: '1 / span 2' }}>
+                                <label className="stat-label">Name</label>
+                                <input className="search-wrapper" style={{ width: '100%' }} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
+                            </div>
+                            <div>
+                                <label className="stat-label">Phone</label>
+                                <input className="search-wrapper" style={{ width: '100%' }} value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="stat-label">Email</label>
+                                <input type="email" className="search-wrapper" style={{ width: '100%' }} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+                            </div>
+                        </>
+                    )}
+
+                    <div style={{ gridColumn: '1 / span 2', display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                        <button type="button" onClick={() => setShowModal(false)} className="btn-secondary" style={{ flex: 1 }}>{t('common.cancel')}</button>
+                        <button type="submit" className="btn-primary" style={{ flex: 1 }}>{t('common.save')}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
 
     const renderOverview = () => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -181,9 +365,11 @@ const PharmacyDashboard = () => {
                         onKeyUp={(e) => e.key === 'Enter' && fetchData()}
                     />
                 </div>
-                <button onClick={() => openModal('medication')} className="btn-primary">
-                    <Plus size={18} /> {t('common.add')}
-                </button>
+                {isAuthorized && (
+                    <button onClick={() => openModal('medication')} className="btn-primary">
+                        <Plus size={18} /> {t('common.add')}
+                    </button>
+                )}
             </div>
             <div className="table-responsive">
                 <table>
@@ -193,9 +379,9 @@ const PharmacyDashboard = () => {
                             <th>{t('common.quantity')}</th>
                             <th>{t('dashboard.costPrice')}</th>
                             <th>{t('dashboard.sellingPrice')}</th>
-                            <th>{t('dashboard.profit')}</th>
+                            {isAuthorized && <th>{t('dashboard.profit')}</th>}
                             <th>{t('dashboard.expiry')}</th>
-                            <th>{t('common.actions')}</th>
+                            {isAuthorized && <th>{t('common.actions')}</th>}
                         </tr>
                     </thead>
                     <tbody>
@@ -208,14 +394,16 @@ const PharmacyDashboard = () => {
                                 <td className={med.quantity <= med.min_stock_level ? 'text-danger fw-bold' : ''}>{med.quantity}</td>
                                 <td>{med.cost_price} {t('common.currency')}</td>
                                 <td>{med.price} {t('common.currency')}</td>
-                                <td className="text-success fw-bold">+{Math.round((med.price - med.cost_price) * 100) / 100}</td>
+                                {isAuthorized && <td className="text-success fw-bold">+{Math.round((med.price - med.cost_price) * 100) / 100}</td>}
                                 <td>{med.expiry_date || 'N/A'}</td>
-                                <td>
-                                    <div className="action-btns">
-                                        <button onClick={() => openModal('medication', med)} className="btn-icon"><Edit2 size={16} /></button>
-                                        <button onClick={() => handleDelete(med.id)} className="btn-icon danger"><Trash2 size={16} /></button>
-                                    </div>
-                                </td>
+                                {isAuthorized && (
+                                    <td>
+                                        <div className="action-btns">
+                                            <button onClick={() => openModal('medication', med)} className="btn-icon"><Edit2 size={16} /></button>
+                                            <button onClick={() => handleDelete(med.id)} className="btn-icon danger"><Trash2 size={16} /></button>
+                                        </div>
+                                    </td>
+                                )}
                             </tr>
                         ))}
                     </tbody>
@@ -370,7 +558,16 @@ const PharmacyDashboard = () => {
                     ].map(tab => (
                         <button
                             key={tab.id}
-                            onClick={() => { setActiveTab(tab.id); setMedPage(0); setSalePage(0); setAuditPage(0); }}
+                            onClick={() => {
+                                if (!isAuthorized && (['overview', 'reports', 'audit'].includes(tab.id))) {
+                                    requestManagerAccess(tab.id);
+                                } else {
+                                    setActiveTab(tab.id);
+                                    setMedPage(0);
+                                    setSalePage(0);
+                                    setAuditPage(0);
+                                }
+                            }}
                             className={`nav-btn ${activeTab === tab.id ? 'active' : ''}`}
                         >
                             {tab.icon} <span>{tab.label}</span>
@@ -394,6 +591,9 @@ const PharmacyDashboard = () => {
                     </>
                 )}
             </div>
+
+            {showModal && renderModal()}
+            {showPinModal && renderPinModal()}
 
             <style jsx="true">{`
                 .dashboard-container { max-width: 1400px; margin: 0 auto; padding: 1rem; }
