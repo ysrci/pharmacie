@@ -356,7 +356,7 @@ const PharmacyDashboard = () => {
     );
 
     return (
-        <div className="dashboard-container fade-in" style={{ direction: i18n.dir() }}>
+        <div className="dashboard-container fade-in" dir={i18n.dir()} style={{ direction: i18n.dir() }}>
             <div className="nav-container card">
                 <div className="nav-scroll">
                     {[
@@ -420,8 +420,8 @@ const PharmacyDashboard = () => {
                 .table-responsive { overflow-x: auto; }
                 table { width: 100%; border-collapse: collapse; min-width: 800px; }
                 th { text-align: left; padding: 12px 16px; border-bottom: 2px solid var(--border); color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
-                [direction='rtl'] th { text-align: right; }
-                td { padding: 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+                td { text-align: left; padding: 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+                [dir='rtl'] th, [dir='rtl'] td { text-align: right; }
                 .cell-title { font-weight: 700; color: var(--text-main); }
                 .cell-subtitle { font-size: 0.8rem; color: var(--text-muted); }
                 
