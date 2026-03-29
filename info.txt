@@ -1,0 +1,109 @@
+# Saydaliya Project: Professional Technical Audit & SaaS Code Review
+**Auditor**: Senior Software Engineer (Generative AI)
+**Status**: Pre-Launch SaaS Review
+
+---
+
+## 1. Architecture Analysis: Monolithic API & Decoupled Frontend
+
+### Structure Overview
+The project follows a **Client-Server Architecture**:
+- **Frontend**: React (Vite) single-page application (SPA). Modern, fast, and uses atomic components.
+- **Backend**: Node.js + Express. Currently, it acts as a "Monolithic Router" (all logic in `server.js`).
+- **Database**: SQLite (`better-sqlite3`). A local, file-based SQL database.
+
+### Separation of Concerns (SoC)
+- **Frontend**: Good separation. `AuthContext` and `SettingsContext` manage state globally. Components (`PharmacyDashboard`, `MapView`) are decoupled well.
+- **Backend**: **Low separation**. Business logic, raw SQL queries, and route definitions are coupled in `server.js`.
+    - *Risk*: Hard to test, prone to regression, difficult for multiple developers to work on simultaneously.
+
+### Scalability Assessment
+- **State**: **Not Scalable (Vertically or Horizontally)**.
+    - SQLite's write-locking will bottleneck when 10+ pharmacies attempt concurrent sales.
+    - `haversine` formula in JS (Line 454) scales O(N). Searching 100,000 products across 10,000 pharmacies will hang the event loop.
+- **Solution**: Shift to **PostgreSQL** (PostGIS for geo-search) and refactor to **MVC Pattern** (Models/Controllers/Services).
+
+---
+
+## 2. Code Quality: Cleanliness & Integrity
+
+### The Good
+- Use of **Modern ES6+** (destructuring, async/await).
+- Consistent error handling (Try/Catch) on API endpoints.
+- Efficient state management in the frontend (Context API > Prop Drilling).
+
+### The Bad (Technical Debt)
+- **Hardcoding**: While we fixed many, `JWT_SECRET` (Line 10) still has a hardcoded fallback. This should fail if `.env` is missing.
+- **Raw SQL**: No ORM (Prisma/Sequelize). While SQL is fast, it's prone to injection if not careful (though `better-sqlite3` uses parameter binding safely).
+- **Redundancy**: Calculation of `profit` (Line 294) is repeated in the search results and the sales panel. This logic should reside in a single "ProfitService".
+
+---
+
+## 3. Business Logic: Profit & Inventory Integrity
+
+### Profit Calculation
+- **Logic**: `profit = total_price - total_cost`.
+- **Flaw**: **Missing Taxes**. In a Real-world SaaS, you must account for **TVA (VAT)**. The current profit is "Gross", but in Pharma, net profit accounts for different tax brackets per category.
+
+### Inventory Updates
+- **Logic**: Atomic subtraction using `db.transaction()` (Lines 296-302).
+- **Strength**: Prevents "Overselling". If a sale fails midway, the inventory is rolled back.
+- **Gap**: **No Audit Trail**. We only see the current `quantity`. If 10 units "disappear", we don't know if they were sold, expired, or stolen.
+
+---
+
+## 4. Data Consistency: Concurrency & Transactions
+
+### Potential Conflicts
+- **Race Condition**: `app.post('/api/pharmacy/sales')` correctly uses transactions.
+- **Consistency Hazard**: If a `pharmacy_id` is updated but the `medication` reference isn't correctly indexed, reports will be skewed. SQLite's `FOREIGN KEY (pharmacy_id) REFERENCES pharmacies(id) ON DELETE CASCADE` (Line 49) handles this well.
+
+---
+
+## 5. Missing Features: The Gap to "Real Pharma"
+
+1.  **Batch/Lot Tracking**: Critical for Pharma. Medications aren't just names; they have Batch Numbers and specific Expiry Dates per batch. Currently, we only have one expiry per product type.
+2.  **Supplier Management**: Stock doesn't appear by magic. You need a "Purchase Order" (PO) system.
+3.  **Customer Records**: Chronic patients need history tracking.
+4.  **Prescription Management**: Digital/Scanned prescription storage for `category: 'prescription'`.
+
+---
+
+## 6. Security Audit: Authentication & Vulnerabilities
+
+- **Authentication**: JWT is implemented correctly with `bcrypt` (Line 43).
+- **Authorization**: `pharmacyOnly` middleware (Line 27) works, but there's no **Ownership Check**.
+    - *Critical Vulnerability*: Can Pharmacy A update Pharmacy B's medication if they guess the ID?
+    - *Evidence*: `app.put('/api/pharmacy/medications/:id')` (Line 233) attempts to check `pharmacy_id`, which is good, but many GET routes lack this scope check.
+- **Data Leak**: The `/api/pharmacies` list (Line 103) returns all pharmacy emails and phones publicly. Needs a rate limiter.
+
+---
+
+## 7. Performance: Bottlenecks
+
+1.  **Geo-Search**: Calculating distance for every row in JS (Line 182) will fail under load.
+2.  **SQLite WAL Mode**: `db.pragma('journal_mode = WAL')` (Line 8) is a great senior-level addition for concurrent reads/writes.
+3.  **Client-Side Rendering**: Dashboard tables render all data at once. Needs **Pagination** for pharmacies with 5000+ items.
+
+---
+
+## 8. Critical Issues (Fix ASAP)
+
+1.  **JWT Secret**: Remove hardcoded secret immediately. Use environment variables.
+2.  **Input Validation**: No Zod/Joi validation. Sending `quantity: -1` might succeed if not caught, leading to corrupt inventory.
+3.  **Unauthorized Access**: Verify that a user cannot manage medications without being the *owner* of that specific pharmacy record.
+
+---
+
+## 9. Improvement Roadmap: SaaS Evolution
+
+| Priority | Feature | Effort | Benefit |
+| :--- | :--- | :--- | :--- |
+| **High** | **Refactor Backend** (MVC Pattern) | Medium | Maintainability, Multi-dev support |
+| **High** | **Batch & Expiry Tracking** | High | Legal compliance for real pharmacies |
+| **Medium** | **PostgreSQL Migration** | Medium | Scalability for thousands of users |
+| **Medium** | **Schema Validation (Zod)** | Low | Data integrity and API safety |
+| **Low** | **TVA/Tax Calculator** | Medium | Financial accuracy for tax reporting |
+
+---
+**Verdict**: The project is a **High-Quality MVP**. It demonstrates expert use of React, SQL Transactions, and Global State. However, for a **SaaS Launch**, it requires architectural refactoring (MVC) and security hardening (Strict Ownership Checks).
