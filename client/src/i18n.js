@@ -54,7 +54,12 @@ const resources = {
                 "managerAccess": "دخول المدير",
                 "enterPin": "الرجاء إدخال رمز التحقق المكون من 4 أرقام",
                 "invalidPin": "رمز التحقق غير صحيح!",
-                "confirm": "تأكيد"
+                "confirm": "تأكيد",
+                "manager": "المدير",
+                "lockManager": "قفل وصول المدير",
+                "profit": "الربح",
+                "noData": "لا توجد بيانات",
+                "noSales": "لا توجد مبيعات بعد"
             }
         }
     },
@@ -109,7 +114,12 @@ const resources = {
                 "managerAccess": "Accès Administrateur",
                 "enterPin": "Veuillez entrer le code PIN à 4 chiffres",
                 "invalidPin": "Code PIN invalide !",
-                "confirm": "Confirmer"
+                "confirm": "Confirmer",
+                "manager": "Directeur",
+                "lockManager": "Verrouiller l'accès",
+                "profit": "Profit",
+                "noData": "Aucune donnée",
+                "noSales": "Aucune vente"
             }
         }
     },
@@ -164,7 +174,12 @@ const resources = {
                 "managerAccess": "Manager Access",
                 "enterPin": "Please enter the 4-digit PIN",
                 "invalidPin": "Invalid PIN!",
-                "confirm": "Confirm"
+                "confirm": "Confirm",
+                "manager": "Manager",
+                "lockManager": "Lock Manager Access",
+                "profit": "Profit",
+                "noData": "No data",
+                "noSales": "No sales yet"
             }
         }
     }

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     Plus, Edit2, Trash2, Package, Search, AlertTriangle,
     BarChart3, ShoppingCart, History, Settings as SettingsIcon,
-    Download, TrendingUp, DollarSign, Calendar, X, Globe, Moon, Sun, FileText, ChevronLeft, ChevronRight, Activity
+    Download, TrendingUp, DollarSign, Calendar, X, Globe, Moon, Sun, FileText, ChevronLeft, ChevronRight, Activity,
+    Lock, Unlock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
@@ -50,6 +51,31 @@ const PharmacyDashboard = () => {
     useEffect(() => {
         fetchData();
     }, [activeTab, medPage, salePage, auditPage]);
+
+    // --- 10-minute inactivity auto-lock ---
+    const inactivityTimerRef = useRef(null);
+    const INACTIVITY_MS = 10 * 60 * 1000; // 10 minutes
+
+    const resetInactivityTimer = () => {
+        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+        inactivityTimerRef.current = setTimeout(() => {
+            setIsAuthorized(false);
+        }, INACTIVITY_MS);
+    };
+
+    useEffect(() => {
+        if (!isAuthorized) {
+            if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+            return;
+        }
+        const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+        events.forEach(e => window.addEventListener(e, resetInactivityTimer));
+        resetInactivityTimer();
+        return () => {
+            events.forEach(e => window.removeEventListener(e, resetInactivityTimer));
+            if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+        };
+    }, [isAuthorized]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -543,33 +569,60 @@ const PharmacyDashboard = () => {
         </div>
     );
 
+    const publicTabs = [
+        { id: 'sales', icon: <ShoppingCart size={18} />, label: t('dashboard.sales') },
+        { id: 'inventory', icon: <Package size={18} />, label: t('dashboard.inventory') },
+        { id: 'suppliers', icon: <Globe size={18} />, label: t('dashboard.suppliers') },
+        { id: 'customers', icon: <History size={18} />, label: t('dashboard.customers') },
+    ];
+
+    const managerTabs = [
+        { id: 'overview', icon: <BarChart3 size={18} />, label: t('dashboard.overview') },
+        { id: 'reports', icon: <FileText size={18} />, label: t('dashboard.reports') },
+        { id: 'audit', icon: <Activity size={18} />, label: t('dashboard.audit') },
+    ];
+
     return (
         <div className="dashboard-container fade-in" dir={i18n.dir()} style={{ direction: i18n.dir() }}>
             <div className="nav-container card">
                 <div className="nav-scroll">
-                    {[
-                        { id: 'overview', icon: <BarChart3 size={18} />, label: t('dashboard.overview') },
-                        { id: 'sales', icon: <ShoppingCart size={18} />, label: t('dashboard.sales') },
-                        { id: 'inventory', icon: <Package size={18} />, label: t('dashboard.inventory') },
-                        { id: 'suppliers', icon: <Globe size={18} />, label: t('dashboard.suppliers') },
-                        { id: 'customers', icon: <History size={18} />, label: t('dashboard.customers') },
-                        { id: 'reports', icon: <History size={18} />, label: t('dashboard.reports') },
-                        { id: 'audit', icon: <Activity size={18} />, label: t('dashboard.audit') }
-                    ].map(tab => (
+                    {/* --- Public Tabs --- */}
+                    {publicTabs.map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => { setActiveTab(tab.id); setMedPage(0); setSalePage(0); setAuditPage(0); }}
+                            className={`nav-btn ${activeTab === tab.id ? 'active' : ''}`}
+                        >
+                            {tab.icon} <span>{tab.label}</span>
+                        </button>
+                    ))}
+
+                    {/* --- Separator --- */}
+                    <div className="nav-separator" />
+
+                    {/* --- Manager Group Header --- */}
+                    <div
+                        className={`nav-manager-header ${isAuthorized ? 'unlocked' : ''}`}
+                        onClick={() => { if (!isAuthorized) requestManagerAccess(managerTabs[0].id); else setIsAuthorized(false); }}
+                        title={isAuthorized ? t('common.lockManager') : t('common.managerAccess')}
+                    >
+                        {isAuthorized ? <Unlock size={14} /> : <Lock size={14} />}
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            {isAuthorized ? t('common.manager') : t('common.manager')}
+                        </span>
+                    </div>
+
+                    {/* --- Manager Tabs (shown only when authorized) --- */}
+                    {managerTabs.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => {
-                                if (!isAuthorized && (['overview', 'reports', 'audit'].includes(tab.id))) {
-                                    requestManagerAccess(tab.id);
-                                } else {
-                                    setActiveTab(tab.id);
-                                    setMedPage(0);
-                                    setSalePage(0);
-                                    setAuditPage(0);
-                                }
+                                if (!isAuthorized) { requestManagerAccess(tab.id); }
+                                else { setActiveTab(tab.id); setMedPage(0); setSalePage(0); setAuditPage(0); }
                             }}
-                            className={`nav-btn ${activeTab === tab.id ? 'active' : ''}`}
+                            className={`nav-btn manager-tab ${!isAuthorized ? 'locked' : ''} ${activeTab === tab.id ? 'active' : ''}`}
                         >
+                            {!isAuthorized && <Lock size={12} style={{ opacity: 0.5 }} />}
                             {tab.icon} <span>{tab.label}</span>
                         </button>
                     ))}
@@ -598,11 +651,17 @@ const PharmacyDashboard = () => {
             <style jsx="true">{`
                 .dashboard-container { max-width: 1400px; margin: 0 auto; padding: 1rem; }
                 .nav-container { padding: 8px; margin-bottom: 2rem; }
-                .nav-scroll { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+                .nav-scroll { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; align-items: center; }
                 .nav-scroll::-webkit-scrollbar { display: none; }
-                .nav-btn { display: flex; align-items: center; gap: 10px; padding: 12px 24px; border-radius: 12px; border: none; background: transparent; color: var(--text-muted); font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; flex: 1; }
+                .nav-btn { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 12px; border: none; background: transparent; color: var(--text-muted); font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
                 .nav-btn.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); }
                 .nav-btn:hover:not(.active) { background: rgba(0,0,0,0.05); }
+                .nav-btn.manager-tab.locked { opacity: 0.55; }
+                .nav-btn.manager-tab.locked:hover { opacity: 0.8; }
+                .nav-separator { width: 1px; height: 32px; background: var(--border); flex-shrink: 0; margin: 0 4px; }
+                .nav-manager-header { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border); cursor: pointer; color: var(--text-muted); transition: all 0.2s; flex-shrink: 0; user-select: none; }
+                .nav-manager-header.unlocked { border-color: var(--primary); color: var(--primary); background: rgba(37,99,235,0.07); }
+                .nav-manager-header:hover { border-color: var(--primary); color: var(--primary); }
                 
                 .stat-card { padding: 1.5rem; border-left: 5px solid transparent; }
                 .stat-card.blue { border-left-color: #2563eb; }

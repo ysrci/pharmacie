@@ -93,51 +93,102 @@ const Navbar = () => {
                 )}
             </div>
 
-            {/* Global Settings Sidebar */}
-            <div ref={sidebarRef} style={{
-                position: 'fixed',
-                top: 0,
-                right: showSettings ? 0 : '-400px',
-                width: '350px',
-                height: '100%',
-                background: 'rgba(var(--bg-card-rgb), 0.4)',
-                backdropFilter: 'blur(20px)',
-                WebkitBackdropFilter: 'blur(20px)',
-                zIndex: 5000,
-                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: '-10px 0 30px rgba(0,0,0,0.1)',
-                borderLeft: '1px solid var(--border)',
-                padding: '2rem',
-                display: 'flex',
-                flexDirection: 'column'
-            }} className="glass-sidebar">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
-                    <h2 style={{ fontWeight: '900', color: 'var(--primary)' }}>{currentT.settings}</h2>
-                    <button onClick={() => setShowSettings(false)} className="btn-nav" style={{ padding: '8px' }}><X /></button>
-                </div>
+            {/* Floating Square Glassmorphism Settings Panel */}
+            {showSettings && (
+                <div
+                    ref={sidebarRef}
+                    style={{
+                        position: 'fixed',
+                        top: '70px',
+                        right: '20px',
+                        width: '310px',
+                        background: 'rgba(255, 255, 255, 0.12)',
+                        backdropFilter: 'blur(28px)',
+                        WebkitBackdropFilter: 'blur(28px)',
+                        border: '1px solid rgba(255, 255, 255, 0.22)',
+                        borderRadius: '24px',
+                        boxShadow: '0 16px 48px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.15)',
+                        zIndex: 5000,
+                        padding: '1.6rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1.6rem',
+                        animation: 'settingsPopIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both',
+                    }}
+                    className="glass-settings-popup"
+                >
+                    {/* Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h3 style={{ fontWeight: '800', color: 'var(--primary)', margin: 0, fontSize: '1rem', letterSpacing: '0.02em' }}>
+                            {currentT.settings}
+                        </h3>
+                        <button
+                            onClick={() => setShowSettings(false)}
+                            style={{
+                                background: 'rgba(0,0,0,0.08)',
+                                border: 'none',
+                                borderRadius: '10px',
+                                width: '30px',
+                                height: '30px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                color: 'var(--text-muted)',
+                                transition: 'all 0.2s',
+                                flexShrink: 0
+                            }}
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
+                    {/* Divider */}
+                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.15)', margin: '-0.5rem 0' }} />
+
+                    {/* Language */}
                     <div>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.2rem', fontWeight: '700', color: 'var(--text-muted)' }}>
-                            <Globe size={18} /> {currentT.language}
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.8rem', fontWeight: '700', fontSize: '0.82rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            <Globe size={14} /> {currentT.language}
                         </label>
-                        <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(0,0,0,0.05)', padding: '6px', borderRadius: '16px' }}>
-                            <button onClick={() => setLanguage('ar')} style={{ flex: 1, background: language === 'ar' ? 'var(--primary)' : 'transparent', color: language === 'ar' ? 'white' : 'inherit', borderRadius: '10px', padding: '10px', transition: 'all 0.3s' }}>العربية</button>
-                            <button onClick={() => setLanguage('fr')} style={{ flex: 1, background: language === 'fr' ? 'var(--primary)' : 'transparent', color: language === 'fr' ? 'white' : 'inherit', borderRadius: '10px', padding: '10px', transition: 'all 0.3s' }}>Français</button>
+                        <div style={{ display: 'flex', gap: '0.4rem', background: 'rgba(0,0,0,0.08)', padding: '5px', borderRadius: '14px' }}>
+                            <button
+                                onClick={() => setLanguage('ar')}
+                                style={{ flex: 1, background: language === 'ar' ? 'var(--primary)' : 'transparent', color: language === 'ar' ? 'white' : 'var(--text-muted)', borderRadius: '10px', padding: '8px', transition: 'all 0.25s', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem' }}
+                            >
+                                العربية
+                            </button>
+                            <button
+                                onClick={() => setLanguage('fr')}
+                                style={{ flex: 1, background: language === 'fr' ? 'var(--primary)' : 'transparent', color: language === 'fr' ? 'white' : 'var(--text-muted)', borderRadius: '10px', padding: '8px', transition: 'all 0.25s', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem' }}
+                            >
+                                Français
+                            </button>
                         </div>
                     </div>
 
+                    {/* Theme */}
                     <div>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.2rem', fontWeight: '700', color: 'var(--text-muted)' }}>
-                            {theme === 'light' ? <Sun size={18} /> : <Moon size={18} />} {currentT.theme}
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.8rem', fontWeight: '700', fontSize: '0.82rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            {theme === 'light' ? <Sun size={14} /> : <Moon size={14} />} {currentT.theme}
                         </label>
-                        <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(0,0,0,0.05)', padding: '6px', borderRadius: '16px' }}>
-                            <button onClick={() => setTheme('light')} style={{ flex: 1, background: theme === 'light' ? 'var(--primary)' : 'transparent', color: theme === 'light' ? 'white' : 'inherit', borderRadius: '10px', padding: '10px', transition: 'all 0.3s' }}>{currentT.light}</button>
-                            <button onClick={() => setTheme('dark')} style={{ flex: 1, background: theme === 'dark' ? 'var(--primary)' : 'transparent', color: theme === 'dark' ? 'white' : 'inherit', borderRadius: '10px', padding: '10px', transition: 'all 0.3s' }}>{currentT.dark}</button>
+                        <div style={{ display: 'flex', gap: '0.4rem', background: 'rgba(0,0,0,0.08)', padding: '5px', borderRadius: '14px' }}>
+                            <button
+                                onClick={() => setTheme('light')}
+                                style={{ flex: 1, background: theme === 'light' ? 'var(--primary)' : 'transparent', color: theme === 'light' ? 'white' : 'var(--text-muted)', borderRadius: '10px', padding: '8px', transition: 'all 0.25s', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem' }}
+                            >
+                                {currentT.light}
+                            </button>
+                            <button
+                                onClick={() => setTheme('dark')}
+                                style={{ flex: 1, background: theme === 'dark' ? 'var(--primary)' : 'transparent', color: theme === 'dark' ? 'white' : 'var(--text-muted)', borderRadius: '10px', padding: '8px', transition: 'all 0.25s', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem' }}
+                            >
+                                {currentT.dark}
+                            </button>
                         </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             <style>{`
                 .btn-nav {
@@ -174,8 +225,13 @@ const Navbar = () => {
                   transform: translateY(-2px);
                   box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
                 }
-                [data-theme='dark'] .glass-sidebar {
-                    background: rgba(15, 23, 42, 0.7) !important;
+                [data-theme='dark'] .glass-settings-popup {
+                    background: rgba(15, 23, 42, 0.55) !important;
+                    border-color: rgba(255,255,255,0.1) !important;
+                }
+                @keyframes settingsPopIn {
+                    from { opacity: 0; transform: scale(0.92) translateY(-8px); }
+                    to   { opacity: 1; transform: scale(1) translateY(0); }
                 }
             `}</style>
         </nav>
