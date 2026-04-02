@@ -4,42 +4,60 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
-const { initDB } = require('./src/config/db');
+const pool = require('./src/db/pool');
 const routes = require('./src/routes');
-
-// Initialize Database
-initDB();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// ─── SECURITY & MIDDLEWARE ────────────────────────────────────
-app.use(helmet()); // Security headers
+// ─── SECURITY & MIDDLEWARE ─────────────────────────────────────
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
-app.use(morgan('dev')); // Logging
+app.use(morgan('dev'));
 
 // Rate Limiting
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    message: 'Too many requests from this IP, please try again after 15 minutes'
+    windowMs: 15 * 60 * 1000,
+    max: 200,
+    message: 'Too many requests, please try again later.'
 });
 app.use('/api/', limiter);
 
-// ─── ROUTES ──────────────────────────────────────────────────
+// ─── ROUTES ───────────────────────────────────────────────────
 app.use('/api', routes);
 
-// Error Handling Middleware
+// ─── HEALTH CHECK ─────────────────────────────────────────────
+app.get('/health', async (req, res) => {
+    try {
+        await pool.query('SELECT 1');
+        res.json({ status: 'ok', db: 'postgresql', timestamp: new Date().toISOString() });
+    } catch (err) {
+        res.status(503).json({ status: 'error', message: err.message });
+    }
+});
+
+// ─── GLOBAL ERROR HANDLER ─────────────────────────────────────
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({
+    console.error('[Error]', err.stack);
+    res.status(err.status || 500).json({
         error: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message
     });
 });
 
-// ─── START SERVER ─────────────────────────────────────────────
-app.listen(PORT, () => {
-    console.log(`🚀 Saydaliya SaaS API running on http://localhost:${PORT}`);
-    console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+// ─── START ────────────────────────────────────────────────────
+async function start() {
+    try {
+        await pool.query('SELECT 1');
+        console.log('✅ PostgreSQL connected');
+        app.listen(PORT, () => {
+            console.log(`🚀 Saydaliya API running on http://localhost:${PORT}`);
+            console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
+        });
+    } catch (err) {
+        console.error('❌ Failed to connect to PostgreSQL:', err.message);
+        process.exit(1);
+    }
+}
+
+start();

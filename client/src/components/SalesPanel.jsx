@@ -12,8 +12,26 @@ const SalesPanel = ({ medications, onSaleComplete }) => {
     const { language } = useSettings();
 
     const filteredMeds = medications.filter(m =>
-        m.name.toLowerCase().includes(searchTerm.toLowerCase()) && m.quantity > 0
+        (m.name.toLowerCase().includes(searchTerm.toLowerCase()) || (m.barcode && m.barcode === searchTerm)) && m.quantity > 0
     );
+
+    const handleSearchKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            // Priority 1: Exact barcode match
+            const barcodeMatch = filteredMeds.find(m => m.barcode === searchTerm);
+            if (barcodeMatch) {
+                addToCart(barcodeMatch);
+                setSearchTerm('');
+                return;
+            }
+
+            // Priority 2: Only one item in filtered list
+            if (filteredMeds.length === 1) {
+                addToCart(filteredMeds[0]);
+                setSearchTerm('');
+            }
+        }
+    };
 
     const addToCart = (med) => {
         const existing = cart.find(item => item.id === med.id);
@@ -79,6 +97,7 @@ const SalesPanel = ({ medications, onSaleComplete }) => {
                         style={{ [i18n.dir() === 'rtl' ? 'paddingRight' : 'paddingLeft']: '2.8rem' }}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                        onKeyDown={handleSearchKeyDown}
                     />
                 </div>
 

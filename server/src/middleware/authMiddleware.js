@@ -1,62 +1,77 @@
 const jwt = require('jsonwebtoken');
-const { query } = require('../config/db');
+const pool = require('../db/pool');
 
 /**
- * Authentication Middleware: Verifies JWT and attaches user/pharmacy info to request.
+ * Authentication Middleware — Verifies JWT and attaches user/pharmacy info to request.
  */
 const authMiddleware = async (req, res, next) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'Unauthorized: No token provided' });
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized: No token provided' });
+    }
 
+    const token = authHeader.split(' ')[1];
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'saydaliya_super_secret_dev_key_2026');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'saydaliya_secret_key_2024');
         req.user = decoded;
 
-        // If user is a pharmacy, attach their pharmacyId for ownership checks
+        // Attach pharmacyId for pharmacy users
         if (req.user.role === 'pharmacy') {
-            const result = await query('SELECT id FROM pharmacies WHERE user_id = ?', [req.user.id]);
+            const result = await pool.query(
+                'SELECT id FROM pharmacies WHERE user_id = $1',
+                [req.user.id]
+            );
             const pharmacy = result.rows[0];
-            if (pharmacy) {
-                req.user.pharmacyId = pharmacy.id;
-            }
+            if (pharmacy) req.user.pharmacyId = pharmacy.id;
         }
 
         next();
     } catch (err) {
-        console.error('Auth Error:', err.message);
-        res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });
+        console.error('[Auth]', err.message);
+        return res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });
     }
 };
 
 /**
- * Middleware: Requires the user to be a registered pharmacy with a valid pharmacyId.
+ * Requires the user to be a registered pharmacy with a valid pharmacyId.
  */
 const pharmacyOnly = (req, res, next) => {
-    if (req.user.role !== 'pharmacy' || !req.user.pharmacyId) {
-        return res.status(403).json({ error: 'Forbidden: Access restricted to registered pharmacies' });
+    if (req.user?.role !== 'pharmacy' || !req.user?.pharmacyId) {
+        return res.status(403).json({ error: 'Forbidden: Pharmacy account required' });
     }
     next();
 };
 
 /**
- * RBAC Middleware: Requires a specific role (e.g., 'admin', 'owner', 'staff').
+ * RBAC: Requires one of the specified roles.
+ * @param {string[]} roles
  */
 const requireRole = (roles) => {
     return (req, res, next) => {
-        if (!roles.includes(req.user.role)) {
-            return res.status(403).json({ error: `Forbidden: Requires one of these roles: ${roles.join(', ')}` });
+        if (!req.user || !roles.includes(req.user.role)) {
+            return res.status(403).json({ error: `Forbidden: Requires role(s): ${roles.join(', ')}` });
         }
         next();
     };
 };
 
 /**
- * SaaS Middleware: Checks if the pharmacy has an active subscription.
+ * SaaS: Checks active subscription for a given feature.
+ * @param {string} feature
  */
-const checkSubscription = async (req, res, next) => {
-    // For now, allow all, but stub for SaaS feature
-    // In future: const sub = await query('SELECT status FROM subscriptions WHERE pharmacy_id = ?', [req.user.pharmacyId]);
-    next();
+const checkSubscription = (feature) => {
+    const SubscriptionService = require('../services/SubscriptionService');
+    return async (req, res, next) => {
+        try {
+            const hasAccess = await SubscriptionService.checkAccess(req.user.pharmacyId, feature);
+            if (!hasAccess) {
+                return res.status(403).json({ error: `Subscription required: ${feature}` });
+            }
+            next();
+        } catch (err) {
+            next(err);
+        }
+    };
 };
 
 module.exports = { authMiddleware, pharmacyOnly, requireRole, checkSubscription };

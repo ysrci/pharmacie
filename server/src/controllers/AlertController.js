@@ -3,8 +3,8 @@ const AlertService = require('../services/AlertService');
 class AlertController {
     static async getMyAlerts(req, res) {
         try {
-            const userId = req.user.id;
-            const alerts = await AlertService.getMyAlerts(userId);
+            const pharmacyId = req.user.pharmacyId;
+            const alerts = await AlertService.getMyAlerts(pharmacyId);
             res.json(alerts);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -13,9 +13,9 @@ class AlertController {
 
     static async markAsRead(req, res) {
         try {
-            const userId = req.user.id;
+            const pharmacyId = req.user.pharmacyId;
             const { id } = req.params;
-            await AlertService.markAsRead(userId, id);
+            await AlertService.markAsRead(pharmacyId, id);
             res.json({ success: true });
         } catch (error) {
             res.status(500).json({ error: error.message });

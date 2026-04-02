@@ -1,36 +1,44 @@
-const { query } = require('../config/db');
+const pool = require('../db/pool');
 
-/**
- * Subscription Service: Manages SaaS tiers and billing status.
- */
+const TIER_FEATURES = {
+    basic: ['inventory', 'sales'],
+    pro: ['inventory', 'sales', 'customers', 'alerts', 'reports'],
+    enterprise: ['inventory', 'sales', 'customers', 'alerts', 'reports', 'multi_branch', 'api_access']
+};
+
 class SubscriptionService {
     static async getSubscription(pharmacyId) {
-        const res = await query('SELECT * FROM subscriptions WHERE pharmacy_id = ?', [pharmacyId]);
-        return res.rows[0];
+        const res = await pool.query(
+            'SELECT * FROM subscriptions WHERE pharmacy_id = $1',
+            [pharmacyId]
+        );
+        return res.rows[0] || null;
     }
 
     static async checkAccess(pharmacyId, feature) {
         const sub = await this.getSubscription(pharmacyId);
         if (!sub || sub.status !== 'active') return false;
-
-        // Tier-based logic
-        const tiers = {
-            'basic': ['inventory', 'sales'],
-            'pro': ['inventory', 'sales', 'customers', 'alerts', 'reports'],
-            'enterprise': ['inventory', 'sales', 'customers', 'alerts', 'reports', 'multi_branch', 'api_access']
-        };
-
-        const allowedFeatures = tiers[sub.tier] || [];
-        return allowedFeatures.includes(feature) || sub.tier === 'enterprise';
+        if (sub.tier === 'enterprise') return true;
+        return (TIER_FEATURES[sub.tier] || []).includes(feature);
     }
 
     static async updateTier(pharmacyId, tier) {
-        await query(`
-            UPDATE subscriptions 
-            SET tier = ?, updated_at = CURRENT_TIMESTAMP 
-            WHERE pharmacy_id = ?
-        `, [tier, pharmacyId]);
-        return { success: true };
+        if (!TIER_FEATURES[tier]) throw new Error(`Invalid tier: ${tier}`);
+        const result = await pool.query(
+            `UPDATE subscriptions SET tier = $1, updated_at = NOW() WHERE pharmacy_id = $2 RETURNING *`,
+            [tier, pharmacyId]
+        );
+        if (result.rowCount === 0) throw new Error('Subscription not found');
+        return result.rows[0];
+    }
+
+    static async updateStatus(pharmacyId, status) {
+        const result = await pool.query(
+            `UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE pharmacy_id = $2 RETURNING *`,
+            [status, pharmacyId]
+        );
+        if (result.rowCount === 0) throw new Error('Subscription not found');
+        return result.rows[0];
     }
 }
 

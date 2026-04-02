@@ -5,6 +5,7 @@ const { authMiddleware, pharmacyOnly } = require('../middleware/authMiddleware')
 
 router.use(authMiddleware, pharmacyOnly);
 router.post('/', SaleController.createSale);
+router.get('/', SaleController.getHistory);
 router.get('/history', SaleController.getHistory);
 
 module.exports = router;

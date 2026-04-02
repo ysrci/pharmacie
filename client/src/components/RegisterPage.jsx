@@ -13,6 +13,21 @@ const RegisterPage = () => {
     const { login } = useAuth();
     const navigate = useNavigate();
 
+    React.useEffect(() => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    setFormData(prev => ({
+                        ...prev,
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    }));
+                },
+                (err) => console.log('Geolocation error:', err)
+            );
+        }
+    }, []);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');

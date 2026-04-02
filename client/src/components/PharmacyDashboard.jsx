@@ -43,7 +43,7 @@ const PharmacyDashboard = () => {
     const { theme } = useSettings();
     const [editingMed, setEditingMed] = useState(null);
     const [formData, setFormData] = useState({
-        name: '', dosage: '', cost_price: '', price: '', quantity: '',
+        name: '', dosage: '', barcode: '', cost_price: '', price: '', quantity: '',
         min_stock_level: 5, category: 'otc', description: '', expiry_date: ''
     });
     const { pharmacy } = useAuth();
@@ -92,25 +92,36 @@ const PharmacyDashboard = () => {
                     const data = await medsRes.json();
                     setMedications({ rows: data.rows || [], total: data.total || 0 });
                 }
+            } else if (activeTab === 'sales') {
+                // Fetch more items for sales search (e.g., 500)
+                const medsRes = await fetch(`/api/pharmacy/medications?limit=500&search=${searchTerm}`, { headers });
+                if (medsRes.ok) {
+                    const data = await medsRes.json();
+                    setMedications({ rows: data.rows || [], total: data.total || 0 });
+                }
             } else if (activeTab === 'reports') {
                 const salesRes = await fetch(`/api/pharmacy/sales?limit=${pageSize}&offset=${salePage * pageSize}`, { headers });
-                setSales(await salesRes.json());
+                if (salesRes.ok) setSales(await salesRes.json());
             } else if (activeTab === 'suppliers') {
                 const res = await fetch('/api/pharmacy/suppliers', { headers });
-                setSuppliers(await res.json());
+                if (res.ok) setSuppliers(await res.json());
+                else setSuppliers([]);
             } else if (activeTab === 'orders') {
                 const res = await fetch('/api/pharmacy/orders', { headers });
-                setOrders(await res.json());
+                if (res.ok) setOrders(await res.json());
+                else setOrders([]);
             } else if (activeTab === 'customers') {
                 const res = await fetch('/api/pharmacy/customers', { headers });
-                setCustomers(await res.json());
+                if (res.ok) setCustomers(await res.json());
+                else setCustomers([]);
             } else if (activeTab === 'audit') {
                 const res = await fetch(`/api/pharmacy/audit-logs?limit=${pageSize}&offset=${auditPage * pageSize}`, { headers });
-                setAuditLogs(await res.json());
+                if (res.ok) setAuditLogs(await res.json());
+                else setAuditLogs({ rows: [], total: 0 });
             }
 
             // Always fetch alerts if needed or on specific intervals
-            fetch('/api/alerts', { headers }).then(r => r.json()).then(setAlerts).catch(e => { });
+            fetch('/api/alerts', { headers }).then(r => r.ok ? r.json() : []).then(setAlerts).catch(e => { });
 
         } catch (err) {
             console.error('Fetch Error:', err);
@@ -208,7 +219,7 @@ const PharmacyDashboard = () => {
         setModalType(type);
         setEditingMed(type === 'medication' ? data : null);
         setFormData(data || {
-            name: '', dosage: '', cost_price: '', price: '', quantity: '',
+            name: '', dosage: '', barcode: '', cost_price: '', price: '', quantity: '',
             min_stock_level: 5, category: 'otc', description: '', expiry_date: '',
             phone: '', email: '', contact_name: '', supplier_id: '', total_amount: ''
         });
@@ -283,6 +294,10 @@ const PharmacyDashboard = () => {
                             <div>
                                 <label className="stat-label">Dosage</label>
                                 <input className="search-wrapper" style={{ width: '100%' }} value={formData.dosage} onChange={e => setFormData({ ...formData, dosage: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="stat-label">Barcode</label>
+                                <input className="search-wrapper" style={{ width: '100%' }} value={formData.barcode || ''} onChange={e => setFormData({ ...formData, barcode: e.target.value })} placeholder="Scan or type barcode" />
                             </div>
                             <div>
                                 <label className="stat-label">{t('dashboard.category')}</label>

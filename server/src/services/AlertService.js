@@ -1,49 +1,91 @@
-const { query, isPostgres } = require('../config/db');
+const pool = require('../db/pool');
 
 class AlertService {
+    /**
+     * Check for batches expiring within the next 30 days and insert an alert
+     * if one has not already been created for that batch.
+     */
     static async checkExpiringMedications() {
-        const thirtyDaysOut = new Date();
-        thirtyDaysOut.setDate(thirtyDaysOut.getDate() + 30);
-        const dateStr = thirtyDaysOut.toISOString().split('T')[0];
-
-        // Find batches expiring within 30 days that haven't been notified
-        const sql = isPostgres()
-            ? `SELECT mb.*, m.name as medication_name, m.pharmacy_id, u.id as user_id
-               FROM medication_batches mb
-               JOIN medications m ON m.id = mb.medication_id
-               JOIN pharmacies p ON p.id = m.pharmacy_id
-               JOIN users u ON u.id = p.user_id
-               WHERE mb.expiry_date <= $1::date AND mb.quantity > 0`
-            : `SELECT mb.*, m.name as medication_name, m.pharmacy_id, u.id as user_id
-               FROM medication_batches mb
-               JOIN medications m ON m.id = mb.medication_id
-               JOIN pharmacies p ON p.id = m.pharmacy_id
-               JOIN users u ON u.id = p.user_id
-               WHERE mb.expiry_date <= ? AND mb.quantity > 0`;
-
-        const res = await query(sql, [dateStr]);
+        const res = await pool.query(
+            `SELECT mb.*, m.name AS medication_name, m.pharmacy_id
+             FROM medication_batches mb
+             JOIN medications m ON m.id = mb.medication_id
+             JOIN pharmacies p ON p.id = m.pharmacy_id
+             WHERE mb.expiry_date <= (NOW() + INTERVAL '30 days')::date
+               AND mb.quantity > 0`
+        );
 
         const expiringBatches = res.rows;
 
         for (const batch of expiringBatches) {
-            // Check if already notified
-            const existingRes = await query('SELECT id FROM alerts WHERE user_id = ? AND message = ? AND is_notified = 1', [batch.user_id, `Medicine ${batch.medication_name} (Batch: ${batch.batch_number}) is expiring on ${batch.expiry_date}`]);
+            const message = `Medicine ${batch.medication_name} (Batch: ${batch.batch_number}) is expiring on ${batch.expiry_date}`;
 
-            if (existingRes.rows.length === 0) {
-                await query('INSERT INTO alerts (user_id, message) VALUES (?, ?)', [batch.user_id, `Medicine ${batch.medication_name} (Batch: ${batch.batch_number}) is expiring on ${batch.expiry_date}`]);
-            }
+            // Insert only if this exact message hasn't been created yet (unread or read)
+            await pool.query(
+                `INSERT INTO alerts (pharmacy_id, message, type)
+                 SELECT $1, $2, 'expiry'
+                 WHERE NOT EXISTS (
+                     SELECT 1 FROM alerts
+                     WHERE pharmacy_id = $1 AND message = $2
+                 )`,
+                [batch.pharmacy_id, message]
+            );
         }
 
         return expiringBatches.length;
     }
 
-    static async getMyAlerts(userId) {
-        const res = await query('SELECT * FROM alerts WHERE user_id = ? ORDER BY created_at DESC LIMIT 10', [userId]);
+    static async checkLowStock() {
+        const res = await pool.query(
+            `SELECT m.id, m.pharmacy_id, m.name, m.quantity, m.min_stock_level
+             FROM medications m
+             WHERE m.quantity <= m.min_stock_level AND m.quantity >= 0`
+        );
+
+        for (const med of res.rows) {
+            const message = `Low stock: ${med.name} has only ${med.quantity} units (minimum: ${med.min_stock_level})`;
+            await pool.query(
+                `INSERT INTO alerts (pharmacy_id, message, type)
+                 SELECT $1, $2, 'low_stock'
+                 WHERE NOT EXISTS (
+                     SELECT 1 FROM alerts
+                     WHERE pharmacy_id = $1 AND message = $2 AND is_read = false
+                 )`,
+                [med.pharmacy_id, message]
+            );
+        }
+
+        return res.rows.length;
+    }
+
+    static async getMyAlerts(pharmacyId) {
+        const res = await pool.query(
+            `SELECT * FROM alerts
+             WHERE pharmacy_id = $1
+             ORDER BY created_at DESC
+             LIMIT 50`,
+            [pharmacyId]
+        );
         return res.rows;
     }
 
-    static async markAsRead(userId, alertId) {
-        await query('UPDATE alerts SET is_notified = 1 WHERE id = ? AND user_id = ?', [alertId, userId]);
+    static async markAsRead(pharmacyId, alertId) {
+        const res = await pool.query(
+            `UPDATE alerts SET is_read = true
+             WHERE id = $1 AND pharmacy_id = $2
+             RETURNING *`,
+            [alertId, pharmacyId]
+        );
+        if (res.rowCount === 0) throw new Error('Alert not found');
+        return res.rows[0];
+    }
+
+    static async markAllAsRead(pharmacyId) {
+        await pool.query(
+            'UPDATE alerts SET is_read = true WHERE pharmacy_id = $1 AND is_read = false',
+            [pharmacyId]
+        );
+        return { success: true };
     }
 }
 

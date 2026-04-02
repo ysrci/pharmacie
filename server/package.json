@@ -1,16 +1,16 @@
 {
   "name": "saydaliya-server",
-  "version": "1.0.0",
-  "description": "Saydaliya Pharmacy Finder API",
+  "version": "2.0.0",
+  "description": "Saydaliya SaaS Pharmacy API — PostgreSQL native",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "seed": "node seed.js",
-    "dev": "node server.js"
+    "dev": "node --watch server.js",
+    "schema": "psql $DATABASE_URL -f schema.sql",
+    "seed": "node seed.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^11.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
     "express": "^4.18.2",

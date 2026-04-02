@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgis/postgis:15-3.3
+    image: postgis/postgis:16-3.4
     container_name: saydaliya_db
     restart: always
     environment:
@@ -11,6 +11,27 @@ services:
       - "5432:5432"
     volumes:
       - saydaliya_data:/var/lib/postgresql/data
+      - ./server/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U saydaliya_user -d saydaliya" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build: ./server
+    container_name: saydaliya_server
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://saydaliya_user:saydaliya_password@db:5432/saydaliya
+      JWT_SECRET: saydaliya_secret_key_2024
+      NODE_ENV: production
+      PORT: 3001
+    ports:
+      - "3001:3001"
 
 volumes:
   saydaliya_data:

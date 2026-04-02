@@ -22,14 +22,15 @@ const loginSchema = z.object({
 
 const medicationSchema = z.object({
     name: z.string().min(1),
-    dosage: z.string().optional(),
+    dosage: z.string().optional().nullable(),
+    barcode: z.string().optional().nullable(),
     cost_price: z.number().nonnegative().optional(),
     price: z.number().positive(),
     quantity: z.number().int().nonnegative().optional(),
     min_stock_level: z.number().int().nonnegative().optional(),
     category: z.enum(['supplement', 'prescription', 'otc', 'beauty', 'equipment']),
     description: z.string().optional(),
-    expiry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable()
+    expiry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable().or(z.literal(''))
 });
 
 const saleSchema = z.object({

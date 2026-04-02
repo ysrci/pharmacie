@@ -1,39 +1,40 @@
-const { query } = require('../config/db');
+const pool = require('../db/pool');
 
 /**
- * Audit Service: Records critical actions for security and compliance.
+ * Audit Service — Records critical actions for security and compliance.
+ * Fire-and-forget: errors are logged but never rethrown.
  */
 class AuditService {
     /**
-     * Log an action to the audit_logs table.
-     * @param {number} userId - The user performing the action.
-     * @param {number} pharmacyId - The pharmacy context.
-     * @param {string} action - Description of the action (e.g., 'SALE_CREATED', 'MED_UPDATED').
-     * @param {string} entityType - e.g., 'sale', 'medication', 'batch'.
-     * @param {number} entityId - The ID of the affected entity.
-     * @param {object} details - Additional JSON details.
+     * @param {number} userId
+     * @param {number} pharmacyId
+     * @param {string} action  e.g. 'SALE_COMPLETED', 'MED_UPDATED'
+     * @param {string|null} entityType  e.g. 'medication', 'sale'
+     * @param {number|null} entityId
+     * @param {object|null} details  Stored as JSONB
      */
     static async log(userId, pharmacyId, action, entityType = null, entityId = null, details = null) {
         try {
-            const detailsStr = details ? JSON.stringify(details) : null;
-            await query(`
-                INSERT INTO audit_logs (user_id, pharmacy_id, action, entity_type, entity_id, details)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `, [userId, pharmacyId, action, entityType, entityId, detailsStr]);
+            await pool.query(
+                `INSERT INTO audit_logs (user_id, pharmacy_id, action, entity_type, entity_id, details)
+                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                [userId, pharmacyId, action, entityType, entityId, details ? JSON.stringify(details) : null]
+            );
         } catch (e) {
-            console.error('Audit Log Error:', e);
+            console.error('Audit Log Error:', e.message);
         }
     }
 
     static async getLogs(pharmacyId, limit = 50, offset = 0) {
-        const res = await query(`
-            SELECT a.*, u.username as user_name
-            FROM audit_logs a
-            JOIN users u ON u.id = a.user_id
-            WHERE a.pharmacy_id = ?
-            ORDER BY a.created_at DESC
-            LIMIT ?
-        `, [pharmacyId, limit]);
+        const res = await pool.query(
+            `SELECT a.*, u.name AS user_name
+             FROM audit_logs a
+             JOIN users u ON u.id = a.user_id
+             WHERE a.pharmacy_id = $1
+             ORDER BY a.created_at DESC
+             LIMIT $2 OFFSET $3`,
+            [pharmacyId, limit, offset]
+        );
         return res.rows;
     }
 }
