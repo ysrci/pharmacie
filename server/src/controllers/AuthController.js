@@ -26,6 +26,23 @@ class AuthController {
         // req.user is attached by authMiddleware
         res.json({ user: req.user });
     }
+
+    static async verifyPin(req, res) {
+        try {
+            const { pin } = req.body;
+            const pharmacyId = req.user.pharmacyId;
+            if (!pharmacyId) return res.status(403).json({ error: 'Pharmacy identity required' });
+
+            const isValid = await AuthService.verifyPin(pharmacyId, pin);
+            if (isValid) {
+                res.json({ success: true });
+            } else {
+                res.status(401).json({ error: 'Invalid PIN' });
+            }
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    }
 }
 
 module.exports = AuthController;

@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS pharmacies (
     open_hours  TEXT        DEFAULT '08:00-22:00',
     is_active   BOOLEAN     NOT NULL DEFAULT TRUE,
     location    GEOMETRY(Point, 4326),
+    manager_pin_hash TEXT,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -67,6 +68,8 @@ CREATE TABLE IF NOT EXISTS medications (
 CREATE INDEX IF NOT EXISTS idx_medications_pharmacy ON medications(pharmacy_id);
 CREATE INDEX IF NOT EXISTS idx_medications_barcode ON medications(barcode);
 CREATE INDEX IF NOT EXISTS idx_medications_name ON medications USING GIN (to_tsvector('simple', name));
+CREATE INDEX IF NOT EXISTS idx_medications_fefo ON medications(pharmacy_id, expiry_date);
+CREATE INDEX IF NOT EXISTS idx_medications_low_stock ON medications(pharmacy_id, quantity) WHERE (quantity <= min_stock_level);
 
 -- ─── MEDICATION BATCHES ───────────────────────────────────────
 CREATE TABLE IF NOT EXISTS medication_batches (
@@ -171,6 +174,7 @@ CREATE TABLE IF NOT EXISTS alerts (
 );
 
 CREATE INDEX IF NOT EXISTS idx_alerts_pharmacy ON alerts(pharmacy_id);
+CREATE INDEX IF NOT EXISTS idx_alerts_unread ON alerts(pharmacy_id, is_read, created_at);
 
 -- ─── AUDIT LOGS ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS audit_logs (

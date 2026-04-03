@@ -39,6 +39,10 @@ const saleSchema = z.object({
     customer_id: z.number().int().positive().optional().nullable()
 });
 
+const batchSaleSchema = z.object({
+    items: z.array(saleSchema).min(1),
+});
+
 const batchSchema = z.object({
     batch_number: z.string().min(1),
     expiry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -58,6 +62,7 @@ module.exports = {
     loginSchema,
     medicationSchema,
     saleSchema,
+    batchSaleSchema,
     batchSchema,
     supplierSchema
 };

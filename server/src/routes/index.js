@@ -19,11 +19,12 @@ router.use('/pharmacy/sales', saleRoutes);
 router.use('/pharmacy/suppliers', supplierRoutes);
 router.use('/pharmacy/orders', poRoutes);
 router.use('/pharmacy/customers', customerRoutes);
-router.use('/pharmacy', dashboardRoutes); // stats and audit-logs
+router.use('/pharmacy/alerts', alertRoutes);
 
-// Generic pharmacy routes LAST
-router.use('/pharmacies', pharmacyRoutes);
-router.use('/pharmacy', pharmacyRoutes);
-router.use('/alerts', alertRoutes);
+// Pharmacy base routes (Dashboard, Stats, Profile)
+// Combine dashboard and generic pharmacy routes
+router.use('/pharmacy', dashboardRoutes);
+router.use('/pharmacies', pharmacyRoutes); // Public list of pharmacies
+
 
 module.exports = router;

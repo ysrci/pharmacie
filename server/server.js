@@ -11,18 +11,36 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ─── SECURITY & MIDDLEWARE ─────────────────────────────────────
+const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:5173'];
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+}));
 app.use(express.json());
 app.use(morgan('dev'));
 
 // Rate Limiting
-const limiter = rateLimit({
+const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 200,
-    message: 'Too many requests, please try again later.'
+    max: 100, // General limit
+    message: { error: 'Too many requests, please try again later.' }
 });
-app.use('/api/', limiter);
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10, // Stricter limit for login/register
+    message: { error: 'Too many authentication attempts, please try again in 15 minutes.' }
+});
+
+app.use('/api/', apiLimiter);
+app.use('/api/auth/', authLimiter);
 
 // ─── ROUTES ───────────────────────────────────────────────────
 app.use('/api', routes);

@@ -4,13 +4,15 @@ const AuditService = require('./AuditService');
 
 class MedicationService {
     /**
-     * Get all medications for a pharmacy with their batches.
-     * Batches fetched in a single query to avoid N+1.
+     * Get paginated medications for a pharmacy with their batches.
+     *
+     * FIX: Batches are now fetched only for the current PAGE of medications,
+     * not for the entire pharmacy inventory (previously could be 5000+ rows).
      */
     static async getAllByPharmacy(pharmacyId, limit = 20, offset = 0, search = '') {
         const searchPattern = `%${search}%`;
 
-        const [dataRes, countRes, batchesRes] = await Promise.all([
+        const [dataRes, countRes] = await Promise.all([
             pool.query(
                 `SELECT m.*,
                         (SELECT COUNT(*) FROM sales WHERE medication_id = m.id) AS sales_count
@@ -25,32 +27,30 @@ class MedicationService {
                 `SELECT COUNT(*) AS count FROM medications
                  WHERE pharmacy_id = $1 AND (name ILIKE $2 OR category ILIKE $2 OR barcode = $3)`,
                 [pharmacyId, searchPattern, search]
-            ),
-            pool.query(
-                `SELECT * FROM medication_batches
-                 WHERE medication_id IN (
-                     SELECT id FROM medications WHERE pharmacy_id = $1
-                 )
-                 ORDER BY expiry_date ASC NULLS LAST`,
-                [pharmacyId]
             )
         ]);
 
-        // Map batches onto medications in JS (no N+1)
-        const batchMap = {};
-        for (const batch of batchesRes.rows) {
-            if (!batchMap[batch.medication_id]) batchMap[batch.medication_id] = [];
-            batchMap[batch.medication_id].push(batch);
+        // Fetch batches ONLY for the medications on this page (no N+1, no full-table scan)
+        const medIds = dataRes.rows.map(m => m.id);
+        let batchMap = {};
+
+        if (medIds.length > 0) {
+            const batchesRes = await pool.query(
+                `SELECT * FROM medication_batches
+                 WHERE medication_id = ANY($1)
+                 ORDER BY expiry_date ASC NULLS LAST`,
+                [medIds]
+            );
+            for (const batch of batchesRes.rows) {
+                if (!batchMap[batch.medication_id]) batchMap[batch.medication_id] = [];
+                batchMap[batch.medication_id].push(batch);
+            }
         }
 
         const rows = dataRes.rows.map((med) => {
             const batches = batchMap[med.id] || [];
             const batchTotal = batches.reduce((sum, b) => sum + b.quantity, 0);
-            return {
-                ...med,
-                batches,
-                sync_warning: batchTotal !== med.quantity
-            };
+            return { ...med, batches, sync_warning: batchTotal !== med.quantity };
         });
 
         return { rows, total: parseInt(countRes.rows[0].count, 10) };
@@ -140,7 +140,6 @@ class MedicationService {
     static async addBatch(userId, pharmacyId, medId, data) {
         const { batch_number, expiry_date, quantity } = data;
 
-        // Verify ownership
         const medRes = await pool.query(
             'SELECT id FROM medications WHERE id = $1 AND pharmacy_id = $2',
             [medId, pharmacyId]
@@ -166,53 +165,70 @@ class MedicationService {
     }
 
     /**
-     * Public medication search with PostGIS-powered distance filtering.
+     * Public medication search with PostGIS distance filtering.
+     *
+     * FIX: Replaced raw string interpolation of lat/lng in SQL (SQL injection risk)
+     * with a fully parameterized query. The distance SELECT and ORDER BY now reference
+     * the same $N placeholders already in the params array.
      */
     static async searchMedications(queryOpts) {
         const { q, category, minPrice, maxPrice, lat, lng, radius } = queryOpts;
 
-        let conditions = ["p.is_active = true", "m.quantity > 0"];
-        let params = [];
-        let paramIndex = 1;
+        const conditions = ['p.is_active = true', 'm.quantity > 0'];
+        const params = [];
+        let pi = 1; // parameter index
 
         if (q) {
-            conditions.push(`m.name ILIKE $${paramIndex++}`);
+            conditions.push(`m.name ILIKE $${pi++}`);
             params.push(`%${q}%`);
         }
         if (category && category !== 'all') {
-            conditions.push(`m.category = $${paramIndex++}`);
+            conditions.push(`m.category = $${pi++}`);
             params.push(category);
         }
         if (minPrice) {
-            conditions.push(`m.price >= $${paramIndex++}`);
+            conditions.push(`m.price >= $${pi++}`);
             params.push(Number(minPrice));
         }
         if (maxPrice) {
-            conditions.push(`m.price <= $${paramIndex++}`);
+            conditions.push(`m.price <= $${pi++}`);
             params.push(Number(maxPrice));
         }
 
-        // PostGIS spatial filter — use ST_DWithin if lat/lng/radius provided
         let distanceSelect = '';
+        let orderBy = 'm.price ASC';
+
         if (lat && lng && radius) {
             const userLat = Number(lat);
             const userLng = Number(lng);
-            const radiusMeters = Number(radius) * 1000; // km → meters
+            const radiusMeters = Number(radius) * 1000;
+
+            if (!isFinite(userLat) || !isFinite(userLng) || !isFinite(radiusMeters)) {
+                throw new Error('Invalid geographic coordinates');
+            }
+
+            // Parameterize lng, lat, radius — reuse same indices for SELECT and WHERE
+            const lngIdx = pi++;
+            const latIdx = pi++;
+            const radIdx = pi++;
+            params.push(userLng, userLat, radiusMeters);
 
             conditions.push(
                 `ST_DWithin(
                     p.location,
-                    ST_SetSRID(ST_MakePoint($${paramIndex++}, $${paramIndex++}), 4326)::geography,
-                    $${paramIndex++}
+                    ST_SetSRID(ST_MakePoint($${lngIdx}, $${latIdx}), 4326)::geography,
+                    $${radIdx}
                 )`
             );
-            params.push(userLng, userLat, radiusMeters);
 
+            // FIX: fully parameterized — no raw interpolation
             distanceSelect = `,
                 ST_Distance(
                     p.location::geography,
-                    ST_SetSRID(ST_MakePoint(${userLng}, ${userLat}), 4326)::geography
+                    ST_SetSRID(ST_MakePoint($${lngIdx}, $${latIdx}), 4326)::geography
                 ) / 1000 AS distance_km`;
+
+            orderBy = 'distance_km ASC, m.price ASC';
         }
 
         const sql = `
@@ -222,7 +238,8 @@ class MedicationService {
             FROM medications m
             JOIN pharmacies p ON p.id = m.pharmacy_id
             WHERE ${conditions.join(' AND ')}
-            ORDER BY ${lat && lng ? 'distance_km ASC, ' : ''}m.price ASC
+            ORDER BY ${orderBy}
+            LIMIT 100
         `;
 
         const res = await pool.query(sql, params);

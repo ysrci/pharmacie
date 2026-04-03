@@ -31,6 +31,12 @@ const PharmacyDashboard = () => {
     const [pinInput, setPinInput] = useState('');
     const [pinError, setPinError] = useState(false);
     const [pendingTab, setPendingTab] = useState(null);
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+
+    useEffect(() => {
+        const handler = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
 
     // Pagination State
     const [medPage, setMedPage] = useState(0);
@@ -50,7 +56,7 @@ const PharmacyDashboard = () => {
 
     useEffect(() => {
         fetchData();
-    }, [activeTab, medPage, salePage, auditPage]);
+    }, [activeTab, medPage, salePage, auditPage, debouncedSearch]);
 
     // --- 10-minute inactivity auto-lock ---
     const inactivityTimerRef = useRef(null);
@@ -87,14 +93,14 @@ const PharmacyDashboard = () => {
                 const statsRes = await fetch('/api/pharmacy/stats', { headers });
                 if (statsRes.ok) setStats(await statsRes.json());
             } else if (activeTab === 'inventory') {
-                const medsRes = await fetch(`/api/pharmacy/medications?limit=${pageSize}&offset=${medPage * pageSize}&search=${searchTerm}`, { headers });
+                const medsRes = await fetch(`/api/pharmacy/medications?limit=${pageSize}&offset=${medPage * pageSize}&search=${debouncedSearch}`, { headers });
                 if (medsRes.ok) {
                     const data = await medsRes.json();
                     setMedications({ rows: data.rows || [], total: data.total || 0 });
                 }
             } else if (activeTab === 'sales') {
-                // Fetch more items for sales search (e.g., 500)
-                const medsRes = await fetch(`/api/pharmacy/medications?limit=500&search=${searchTerm}`, { headers });
+                // Fetch full stock for sales (no hard limit, server handles search)
+                const medsRes = await fetch(`/api/pharmacy/medications?search=${debouncedSearch}`, { headers });
                 if (medsRes.ok) {
                     const data = await medsRes.json();
                     setMedications({ rows: data.rows || [], total: data.total || 0 });
@@ -129,19 +135,34 @@ const PharmacyDashboard = () => {
         setLoading(false);
     };
 
-    const handlePinSubmit = (val = pinInput) => {
-        if (val === '1234') {
-            setIsAuthorized(true);
-            setShowPinModal(false);
-            setPinInput('');
-            setPinError(false);
-            if (pendingTab) {
-                setActiveTab(pendingTab);
-                setPendingTab(null);
+    const handlePinSubmit = async (val = pinInput) => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/auth/verify-pin', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ pin: val })
+            });
+
+            if (res.ok) {
+                setIsAuthorized(true);
+                setShowPinModal(false);
+                setPinInput('');
+                setPinError(false);
+                if (pendingTab) {
+                    setActiveTab(pendingTab);
+                    setPendingTab(null);
+                }
+            } else {
+                setPinError(true);
+                setPinInput('');
             }
-        } else {
+        } catch (err) {
+            console.error('PIN Verification Error:', err);
             setPinError(true);
-            setPinInput('');
         }
     };
 
@@ -257,7 +278,14 @@ const PharmacyDashboard = () => {
             const res = await fetch(url, {
                 method,
                 headers,
-                body: JSON.stringify(formData)
+                body: JSON.stringify({
+                    ...formData,
+                    // Cast numeric fields
+                    cost_price: formData.cost_price ? parseFloat(formData.cost_price) : undefined,
+                    price: formData.price ? parseFloat(formData.price) : undefined,
+                    quantity: formData.quantity ? parseInt(formData.quantity) : undefined,
+                    min_stock_level: formData.min_stock_level ? parseInt(formData.min_stock_level) : undefined,
+                })
             });
 
             if (res.ok) {
@@ -475,7 +503,7 @@ const PharmacyDashboard = () => {
                                 <td className="fw-bold">{log.user_name || 'System'}</td>
                                 <td><span className="badge">{log.action}</span></td>
                                 <td className="text-muted">{log.entity_type} #{log.entity_id}</td>
-                                <td className="text-small">{log.details}</td>
+                                <td className="text-small">{typeof log.details === 'object' ? JSON.stringify(log.details) : log.details}</td>
                             </tr>
                         ))}
                     </tbody>
@@ -545,7 +573,9 @@ const PharmacyDashboard = () => {
                             <td>{s.contact_name}</td>
                             <td>{s.email}</td>
                             <td>{s.phone}</td>
-                            <td><button className="btn-icon"><Edit2 size={16} /></button></td>
+                            <td>
+                                <button className="btn-icon" onClick={() => openModal('supplier', s)}><Edit2 size={16} /></button>
+                            </td>
                         </tr>
                     ))}
                 </tbody>
@@ -576,7 +606,9 @@ const PharmacyDashboard = () => {
                             <td>{c.phone}</td>
                             <td>{c.email}</td>
                             <td>{new Date(c.created_at).toLocaleDateString()}</td>
-                            <td><button className="btn-icon"><FileText size={16} /></button></td>
+                            <td>
+                                <button className="btn-icon" onClick={() => openModal('customer', c)}><Edit2 size={16} /></button>
+                            </td>
                         </tr>
                     ))}
                 </tbody>

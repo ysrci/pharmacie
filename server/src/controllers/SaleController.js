@@ -21,6 +21,20 @@ class SaleController {
         }
     }
 
+    static async completeBatchSale(req, res) {
+        try {
+            const { batchSaleSchema } = require('../utils/validation');
+            const { items } = batchSaleSchema.parse(req.body);
+            const pharmacyId = req.user.pharmacyId;
+            const userId = req.user.id;
+
+            const result = await SaleService.completeBatchSale(userId, pharmacyId, items);
+            res.json(result);
+        } catch (err) {
+            res.status(400).json({ error: err.errors ? err.errors : err.message });
+        }
+    }
+
     static async getHistory(req, res) {
         try {
             const { limit = 50, offset = 0 } = req.query;

@@ -12,19 +12,9 @@ const authMiddleware = async (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'saydaliya_secret_key_2024');
+        const secret = process.env.JWT_SECRET || 'saydaliya_secret_key_2024';
+        const decoded = jwt.verify(token, secret);
         req.user = decoded;
-
-        // Attach pharmacyId for pharmacy users
-        if (req.user.role === 'pharmacy') {
-            const result = await pool.query(
-                'SELECT id FROM pharmacies WHERE user_id = $1',
-                [req.user.id]
-            );
-            const pharmacy = result.rows[0];
-            if (pharmacy) req.user.pharmacyId = pharmacy.id;
-        }
-
         next();
     } catch (err) {
         console.error('[Auth]', err.message);

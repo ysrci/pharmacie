@@ -61,19 +61,25 @@ const SalesPanel = ({ medications, onSaleComplete }) => {
     const handleCheckout = async () => {
         setLoading(true);
         try {
-            for (const item of cart) {
-                await fetch('/api/pharmacy/sales', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    },
-                    body: JSON.stringify({
+            const response = await fetch('/api/pharmacy/sales/batch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({
+                    items: cart.map(item => ({
                         medication_id: item.id,
                         quantity: item.cartQuantity
-                    })
-                });
+                    }))
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Checkout failed');
             }
+
             setSuccess(true);
             setCart([]);
             setTimeout(() => {

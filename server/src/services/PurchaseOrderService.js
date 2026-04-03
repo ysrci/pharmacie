@@ -97,11 +97,14 @@ class PurchaseOrderService {
                     ]
                 );
 
+                // FIX: Do NOT overwrite cost_price. Updating cost_price here was silently
+                // corrupting profit data for all future sales. Cost price must be managed
+                // explicitly by the pharmacist through the medication edit form.
                 await client.query(
                     `UPDATE medications
-                     SET quantity = quantity + $1, cost_price = $2, updated_at = NOW()
-                     WHERE id = $3`,
-                    [item.quantity, item.unit_cost, item.medication_id]
+                     SET quantity = quantity + $1, updated_at = NOW()
+                     WHERE id = $2`,
+                    [item.quantity, item.medication_id]
                 );
             }
         });
