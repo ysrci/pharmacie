@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
+import { apiFetch } from '../utils/api';
 
 const SalesPanel = ({ medications, onSaleComplete }) => {
     const { t, i18n } = useTranslation();
@@ -61,12 +62,8 @@ const SalesPanel = ({ medications, onSaleComplete }) => {
     const handleCheckout = async () => {
         setLoading(true);
         try {
-            const response = await fetch('/api/pharmacy/sales/batch', {
+            await apiFetch('/api/pharmacy/sales/batch', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
                 body: JSON.stringify({
                     items: cart.map(item => ({
                         medication_id: item.id,
@@ -75,11 +72,6 @@ const SalesPanel = ({ medications, onSaleComplete }) => {
                 })
             });
 
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.error || 'Checkout failed');
-            }
-
             setSuccess(true);
             setCart([]);
             setTimeout(() => {
@@ -87,7 +79,7 @@ const SalesPanel = ({ medications, onSaleComplete }) => {
                 onSaleComplete();
             }, 2000);
         } catch (err) {
-            console.error(err);
+            console.error('Checkout Error:', err.message);
         }
         setLoading(false);
     };

@@ -1,41 +1,44 @@
 const PurchaseOrderService = require('../services/PurchaseOrderService');
 
 class PurchaseOrderController {
-    static async getAll(req, res) {
+    static async getAll(req, res, next) {
         try {
             const orders = await PurchaseOrderService.getAll(req.user.pharmacyId);
             res.json(orders);
         } catch (err) {
-            res.status(500).json({ error: 'Internal Server Error' });
+            next(err);
         }
     }
 
-    static async getDetail(req, res) {
+    static async getDetail(req, res, next) {
         try {
             const order = await PurchaseOrderService.getById(req.user.pharmacyId, req.params.id);
-            if (!order) return res.status(404).json({ error: 'Order not found' });
+            if (!order) {
+                const error = new Error('Order not found');
+                error.status = 404;
+                throw error;
+            }
             res.json(order);
         } catch (err) {
-            res.status(500).json({ error: 'Internal Server Error' });
+            next(err);
         }
     }
 
-    static async create(req, res) {
+    static async create(req, res, next) {
         try {
             const order = await PurchaseOrderService.create(req.user.pharmacyId, req.body);
             res.json(order);
         } catch (err) {
-            console.error(err);
-            res.status(400).json({ error: err.message });
+            next(err);
         }
     }
 
-    static async receive(req, res) {
+    static async receive(req, res, next) {
         try {
             const result = await PurchaseOrderService.receiveOrder(req.user.pharmacyId, req.params.id);
             res.json(result);
         } catch (err) {
-            res.status(400).json({ error: err.message });
+            next(err);
         }
     }
 }

@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { apiFetch } from '../utils/api';
 
 const AuthContext = createContext();
 
@@ -7,27 +8,24 @@ export const AuthProvider = ({ children }) => {
     const [pharmacy, setPharmacy] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const checkAuth = async () => {
-            const token = localStorage.getItem('token');
-            if (token) {
-                try {
-                    const res = await fetch('/api/auth/me', {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    if (res.ok) {
-                        const data = await res.json();
-                        setUser(data.user);
-                        setPharmacy(data.pharmacy);
-                    } else {
-                        localStorage.removeItem('token');
-                    }
-                } catch (err) {
-                    console.error(err);
-                }
+    const checkAuth = async () => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            try {
+                const data = await apiFetch('/api/auth/me');
+                setUser(data.user);
+                setPharmacy(data.pharmacy);
+            } catch (err) {
+                console.error('Auth Check Failed:', err.message);
+                localStorage.removeItem('token');
+                setUser(null);
+                setPharmacy(null);
             }
-            setLoading(false);
-        };
+        }
+        setLoading(false);
+    };
+
+    useEffect(() => {
         checkAuth();
     }, []);
 
@@ -44,7 +42,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, pharmacy, login, logout, loading }}>
+        <AuthContext.Provider value={{ user, pharmacy, login, logout, loading, checkAuth }}>
             {children}
         </AuthContext.Provider>
     );

@@ -1,30 +1,30 @@
 const PrescriptionService = require('../services/PrescriptionService');
 
 class PrescriptionController {
-    static async getByCustomer(req, res) {
+    static async getByCustomer(req, res, next) {
         try {
             const prescriptions = await PrescriptionService.getByCustomer(req.params.customerId);
             res.json(prescriptions);
         } catch (err) {
-            res.status(500).json({ error: 'Internal Server Error' });
+            next(err);
         }
     }
 
-    static async create(req, res) {
+    static async create(req, res, next) {
         try {
             const prescription = await PrescriptionService.create(req.params.customerId, req.body);
             res.json(prescription);
         } catch (err) {
-            res.status(400).json({ error: err.message });
+            next(err);
         }
     }
 
-    static async delete(req, res) {
+    static async delete(req, res, next) {
         try {
             const result = await PrescriptionService.delete(req.params.customerId, req.params.id);
             res.json(result);
         } catch (err) {
-            res.status(400).json({ error: err.message });
+            next(err);
         }
     }
 }

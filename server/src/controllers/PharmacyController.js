@@ -1,45 +1,53 @@
 const PharmacyService = require('../services/PharmacyService');
 
 class PharmacyController {
-    static async getAll(req, res) {
+    static async getAll(req, res, next) {
         try {
-            const pharmacies = await PharmacyService.getAllActive();
+            const { lat, lng, radius, limit, offset, search } = req.query;
+            const pharmacies = await PharmacyService.getAllActive({
+                lat: lat ? parseFloat(lat) : null,
+                lng: lng ? parseFloat(lng) : null,
+                radius: radius ? parseFloat(radius) : 10,
+                limit: limit ? parseInt(limit) : 20,
+                offset: offset ? parseInt(offset) : 0,
+                search
+            });
             res.json(pharmacies);
         } catch (err) {
-            console.error(err);
-            res.status(500).json({ error: 'Internal Server Error' });
+            next(err);
         }
     }
 
-    static async getDetails(req, res) {
+    static async getDetails(req, res, next) {
         try {
             const pharmacy = await PharmacyService.getById(req.params.id);
-            if (!pharmacy) return res.status(404).json({ error: 'Pharmacy not found' });
+            if (!pharmacy) {
+                const error = new Error('Pharmacy not found');
+                error.status = 404;
+                throw error;
+            }
             res.json(pharmacy);
         } catch (err) {
-            console.error(err);
-            res.status(500).json({ error: 'Internal Server Error' });
+            next(err);
         }
     }
 
-    static async getSettings(req, res) {
+    static async getSettings(req, res, next) {
         try {
             const settings = await PharmacyService.getProfitSettings(req.user.pharmacyId);
             res.json(settings);
         } catch (err) {
-            console.error(err);
-            res.status(500).json({ error: 'Internal Server Error' });
+            next(err);
         }
     }
 
-    static async updateSettings(req, res) {
+    static async updateSettings(req, res, next) {
         try {
             const { default_margin_percentage } = req.body;
             const result = await PharmacyService.updateProfitSettings(req.user.pharmacyId, default_margin_percentage);
             res.json(result);
         } catch (err) {
-            console.error(err);
-            res.status(500).json({ error: 'Internal Server Error' });
+            next(err);
         }
     }
 }

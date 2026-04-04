@@ -8,42 +8,46 @@ const customerSchema = z.object({
 });
 
 class CustomerController {
-    static async getAll(req, res) {
+    static async getAll(req, res, next) {
         try {
             const customers = await CustomerService.getAll(req.user.pharmacyId);
             res.json(customers);
         } catch (err) {
-            res.status(500).json({ error: 'Internal Server Error' });
+            next(err);
         }
     }
 
-    static async getDetail(req, res) {
+    static async getDetail(req, res, next) {
         try {
             const customer = await CustomerService.getById(req.user.pharmacyId, req.params.id);
-            if (!customer) return res.status(404).json({ error: 'Customer not found' });
+            if (!customer) {
+                const error = new Error('Customer not found');
+                error.status = 404;
+                throw error;
+            }
             res.json(customer);
         } catch (err) {
-            res.status(500).json({ error: 'Internal Server Error' });
+            next(err);
         }
     }
 
-    static async create(req, res) {
+    static async create(req, res, next) {
         try {
             const validatedData = customerSchema.parse(req.body);
             const customer = await CustomerService.create(req.user.pharmacyId, validatedData);
             res.json(customer);
         } catch (err) {
-            res.status(400).json({ error: err.errors ? err.errors : err.message });
+            next(err);
         }
     }
 
-    static async update(req, res) {
+    static async update(req, res, next) {
         try {
             const validatedData = customerSchema.partial().parse(req.body);
             const customer = await CustomerService.update(req.user.pharmacyId, req.params.id, validatedData);
             res.json(customer);
         } catch (err) {
-            res.status(400).json({ error: err.errors ? err.errors : err.message });
+            next(err);
         }
     }
 }

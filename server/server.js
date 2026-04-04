@@ -1,4 +1,11 @@
 require('dotenv').config();
+
+// CRITICAL: Enforce JWT_SECRET for security
+if (!process.env.JWT_SECRET) {
+    console.error('FATAL ERROR: JWT_SECRET environment variable is not defined.');
+    process.exit(1);
+}
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -57,9 +64,15 @@ app.get('/health', async (req, res) => {
 
 // ─── GLOBAL ERROR HANDLER ─────────────────────────────────────
 app.use((err, req, res, next) => {
-    console.error('[Error]', err.stack);
-    res.status(err.status || 500).json({
-        error: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message
+    console.error('[Error Details]', err.stack);
+
+    const statusCode = err.status || 500;
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.status(statusCode).json({
+        error: isProduction ? 'Internal Server Error' : err.message,
+        code: err.code || 'INTERNAL_ERROR',
+        ...(isProduction ? {} : { stack: err.stack })
     });
 });
 

@@ -24,20 +24,22 @@ class AuthService {
                 const userId = userResult.rows[0].id;
 
                 let pharmacyId = null;
+                let pharmacy = null;
 
                 if (userRole === 'pharmacy' && pharmacyData) {
                     const { name: pName, address, lat, lng, open_hours } = pharmacyData;
                     const pharmResult = await client.query(
                         `INSERT INTO pharmacies (user_id, name, address, lat, lng, phone, open_hours, location)
                          VALUES ($1, $2, $3, $4, $5, $6, $7, ST_SetSRID(ST_MakePoint($8, $9), 4326))
-                         RETURNING id`,
+                         RETURNING *`,
                         [
                             userId, pName || name, address, lat, lng,
                             phone || null, open_hours || '08:00-22:00',
                             lng, lat
                         ]
                     );
-                    pharmacyId = pharmResult.rows[0].id;
+                    pharmacy = pharmResult.rows[0];
+                    pharmacyId = pharmacy.id;
 
                     await client.query(
                         `INSERT INTO subscriptions (pharmacy_id, tier, status)
@@ -58,7 +60,12 @@ class AuthService {
                 const token = AuthService.generateToken({
                     id: userId, email, role: userRole, name, pharmacyId
                 });
-                return { token, userId, role: userRole };
+
+                return {
+                    token,
+                    user: { id: userId, name, email, role: userRole },
+                    pharmacy
+                };
             });
         } catch (err) {
             // Postgres unique violation on users.email

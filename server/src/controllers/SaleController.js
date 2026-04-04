@@ -1,8 +1,8 @@
 const SaleService = require('../services/SaleService');
-const { saleSchema } = require('../utils/validation');
+const { saleSchema, batchSaleSchema } = require('../utils/validation');
 
 class SaleController {
-    static async createSale(req, res) {
+    static async createSale(req, res, next) {
         try {
             const validatedData = saleSchema.parse(req.body);
             const pharmacyId = req.user.pharmacyId;
@@ -17,13 +17,12 @@ class SaleController {
             );
             res.json(result);
         } catch (err) {
-            res.status(400).json({ error: err.errors ? err.errors : err.message });
+            next(err);
         }
     }
 
-    static async completeBatchSale(req, res) {
+    static async completeBatchSale(req, res, next) {
         try {
-            const { batchSaleSchema } = require('../utils/validation');
             const { items } = batchSaleSchema.parse(req.body);
             const pharmacyId = req.user.pharmacyId;
             const userId = req.user.id;
@@ -31,19 +30,18 @@ class SaleController {
             const result = await SaleService.completeBatchSale(userId, pharmacyId, items);
             res.json(result);
         } catch (err) {
-            res.status(400).json({ error: err.errors ? err.errors : err.message });
+            next(err);
         }
     }
 
-    static async getHistory(req, res) {
+    static async getHistory(req, res, next) {
         try {
             const { limit = 50, offset = 0 } = req.query;
             const pharmacyId = req.user.pharmacyId;
             const result = await SaleService.getSalesHistory(pharmacyId, parseInt(limit), parseInt(offset));
             res.json(result);
         } catch (err) {
-            console.error(err);
-            res.status(500).json({ error: 'Server error' });
+            next(err);
         }
     }
 }

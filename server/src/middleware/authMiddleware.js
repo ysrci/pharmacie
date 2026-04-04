@@ -12,13 +12,14 @@ const authMiddleware = async (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
     try {
-        const secret = process.env.JWT_SECRET || 'saydaliya_secret_key_2024';
+        const secret = process.env.JWT_SECRET; // No fallback for security
         const decoded = jwt.verify(token, secret);
         req.user = decoded;
         next();
     } catch (err) {
-        console.error('[Auth]', err.message);
-        return res.status(401).json({ error: 'Unauthorized: Invalid or expired token' });
+        const errorMsg = err.name === 'TokenExpiredError' ? 'Token expired' : 'Invalid token';
+        const errorCode = err.name === 'TokenExpiredError' ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN';
+        return res.status(401).json({ error: errorMsg, code: errorCode });
     }
 };
 

@@ -1,15 +1,38 @@
 const pool = require('../db/pool');
 
 class PharmacyService {
-    static async getAllActive() {
-        const res = await pool.query(
-            `SELECT p.*, u.email,
-                    (SELECT COUNT(*) FROM medications m WHERE m.pharmacy_id = p.id AND m.quantity > 0) AS med_count
-             FROM pharmacies p
-             JOIN users u ON u.id = p.user_id
-             WHERE p.is_active = true
-             ORDER BY p.name`
-        );
+    /**
+     * Search pharmacies with filtering, spatial proximity (PostGIS), and pagination.
+     */
+    static async getAllActive(params = {}) {
+        const { lat, lng, radius = 10, limit = 20, offset = 0, search = '' } = params;
+
+        let query = `
+            SELECT p.*, u.email,
+                   (SELECT COUNT(*) FROM medications m WHERE m.pharmacy_id = p.id AND m.quantity > 0) AS med_count`;
+
+        const queryParams = [];
+        const conditions = ['p.is_active = true'];
+
+        if (lat && lng) {
+            query += `, ST_Distance(p.location, ST_SetSRID(ST_MakePoint($${queryParams.length + 1}, $${queryParams.length + 2}), 4326)) AS distance`;
+            queryParams.push(lng, lat);
+            conditions.push(`ST_DWithin(p.location, ST_SetSRID(ST_MakePoint($${queryParams.length - 1}, $${queryParams.length}), 4326), $${queryParams.length + 1} / 111.32)`);
+            queryParams.push(radius);
+        }
+
+        if (search) {
+            conditions.push(`p.name ILIKE $${queryParams.length + 1}`);
+            queryParams.push(`%${search}%`);
+        }
+
+        query += ` FROM pharmacies p JOIN users u ON u.id = p.user_id`;
+        query += ` WHERE ` + conditions.join(' AND ');
+        query += ` ORDER BY ` + (lat && lng ? 'distance ASC' : 'p.name');
+        query += ` LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+        queryParams.push(limit, offset);
+
+        const res = await pool.query(query, queryParams);
         return res.rows;
     }
 

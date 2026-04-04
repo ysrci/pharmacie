@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
+import { apiFetch } from '../utils/api';
 import { SalesLineChart, TopProductsChart } from './StatsCharts';
 import SalesPanel from './SalesPanel';
 import { jsPDF } from 'jspdf';
@@ -86,83 +87,60 @@ const PharmacyDashboard = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const headers = { 'Authorization': `Bearer ${token}` };
-
             if (activeTab === 'overview') {
-                const statsRes = await fetch('/api/pharmacy/stats', { headers });
-                if (statsRes.ok) setStats(await statsRes.json());
+                const data = await apiFetch('/api/pharmacy/stats');
+                setStats(data);
             } else if (activeTab === 'inventory') {
-                const medsRes = await fetch(`/api/pharmacy/medications?limit=${pageSize}&offset=${medPage * pageSize}&search=${debouncedSearch}`, { headers });
-                if (medsRes.ok) {
-                    const data = await medsRes.json();
-                    setMedications({ rows: data.rows || [], total: data.total || 0 });
-                }
+                const data = await apiFetch(`/api/pharmacy/medications?limit=${pageSize}&offset=${medPage * pageSize}&search=${debouncedSearch}`);
+                setMedications({ rows: data.rows || [], total: data.total || 0 });
             } else if (activeTab === 'sales') {
-                // Fetch full stock for sales (no hard limit, server handles search)
-                const medsRes = await fetch(`/api/pharmacy/medications?search=${debouncedSearch}`, { headers });
-                if (medsRes.ok) {
-                    const data = await medsRes.json();
-                    setMedications({ rows: data.rows || [], total: data.total || 0 });
-                }
+                const data = await apiFetch(`/api/pharmacy/medications?search=${debouncedSearch}`);
+                setMedications({ rows: data.rows || [], total: data.total || 0 });
             } else if (activeTab === 'reports') {
-                const salesRes = await fetch(`/api/pharmacy/sales?limit=${pageSize}&offset=${salePage * pageSize}`, { headers });
-                if (salesRes.ok) setSales(await salesRes.json());
+                const data = await apiFetch(`/api/pharmacy/sales?limit=${pageSize}&offset=${salePage * pageSize}`);
+                setSales(data);
             } else if (activeTab === 'suppliers') {
-                const res = await fetch('/api/pharmacy/suppliers', { headers });
-                if (res.ok) setSuppliers(await res.json());
-                else setSuppliers([]);
+                const data = await apiFetch('/api/pharmacy/suppliers');
+                setSuppliers(data || []);
             } else if (activeTab === 'orders') {
-                const res = await fetch('/api/pharmacy/orders', { headers });
-                if (res.ok) setOrders(await res.json());
-                else setOrders([]);
+                const data = await apiFetch('/api/pharmacy/orders');
+                setOrders(data || []);
             } else if (activeTab === 'customers') {
-                const res = await fetch('/api/pharmacy/customers', { headers });
-                if (res.ok) setCustomers(await res.json());
-                else setCustomers([]);
+                const data = await apiFetch('/api/pharmacy/customers');
+                setCustomers(data || []);
             } else if (activeTab === 'audit') {
-                const res = await fetch(`/api/pharmacy/audit-logs?limit=${pageSize}&offset=${auditPage * pageSize}`, { headers });
-                if (res.ok) setAuditLogs(await res.json());
-                else setAuditLogs({ rows: [], total: 0 });
+                const data = await apiFetch(`/api/pharmacy/audit-logs?limit=${pageSize}&offset=${auditPage * pageSize}`);
+                setAuditLogs(data || { rows: [], total: 0 });
             }
 
-            // Always fetch alerts if needed or on specific intervals
-            fetch('/api/alerts', { headers }).then(r => r.ok ? r.json() : []).then(setAlerts).catch(e => { });
+            // Fetch alerts in background
+            apiFetch('/api/alerts').then(setAlerts).catch(() => { });
 
         } catch (err) {
-            console.error('Fetch Error:', err);
+            console.error('Fetch Error:', err.message);
         }
         setLoading(false);
     };
 
     const handlePinSubmit = async (val = pinInput) => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/auth/verify-pin', {
+            await apiFetch('/api/auth/verify-pin', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
                 body: JSON.stringify({ pin: val })
             });
 
-            if (res.ok) {
-                setIsAuthorized(true);
-                setShowPinModal(false);
-                setPinInput('');
-                setPinError(false);
-                if (pendingTab) {
-                    setActiveTab(pendingTab);
-                    setPendingTab(null);
-                }
-            } else {
-                setPinError(true);
-                setPinInput('');
+            setIsAuthorized(true);
+            setShowPinModal(false);
+            setPinInput('');
+            setPinError(false);
+            if (pendingTab) {
+                setActiveTab(pendingTab);
+                setPendingTab(null);
             }
         } catch (err) {
-            console.error('PIN Verification Error:', err);
+            console.error('PIN Verification Error:', err.message);
             setPinError(true);
+            setPinInput('');
         }
     };
 
@@ -250,20 +228,13 @@ const PharmacyDashboard = () => {
     const handleDelete = async (medId) => {
         if (!window.confirm(t('common.confirmDelete'))) return;
         try {
-            const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
-            await fetch(`/api/pharmacy/medications/${medId}`, { method: 'DELETE', headers });
+            await apiFetch(`/api/pharmacy/medications/${medId}`, { method: 'DELETE' });
             fetchData();
-        } catch (err) { console.error(err); }
+        } catch (err) { console.error('Delete Error:', err.message); }
     };
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const token = localStorage.getItem('token');
-            const headers = {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            };
-
             let url = '';
             let method = editingMed ? 'PUT' : 'POST';
 
@@ -275,9 +246,8 @@ const PharmacyDashboard = () => {
                 url = '/api/pharmacy/customers';
             }
 
-            const res = await fetch(url, {
+            await apiFetch(url, {
                 method,
-                headers,
                 body: JSON.stringify({
                     ...formData,
                     // Cast numeric fields
@@ -288,15 +258,11 @@ const PharmacyDashboard = () => {
                 })
             });
 
-            if (res.ok) {
-                setShowModal(false);
-                fetchData();
-            } else {
-                const err = await res.json();
-                alert(err.error || 'Operation failed');
-            }
+            setShowModal(false);
+            fetchData();
         } catch (err) {
-            console.error(err);
+            console.error('Submit Error:', err.message);
+            alert(err.message || 'Operation failed');
         }
     };
 

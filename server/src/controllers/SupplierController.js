@@ -2,41 +2,41 @@ const SupplierService = require('../services/SupplierService');
 const { supplierSchema } = require('../utils/validation');
 
 class SupplierController {
-    static async getAll(req, res) {
+    static async getAll(req, res, next) {
         try {
             const suppliers = await SupplierService.getAll(req.user.pharmacyId);
             res.json(suppliers);
         } catch (err) {
-            res.status(500).json({ error: 'Internal Server Error' });
+            next(err);
         }
     }
 
-    static async create(req, res) {
+    static async create(req, res, next) {
         try {
             const validatedData = supplierSchema.parse(req.body);
             const supplier = await SupplierService.create(req.user.pharmacyId, validatedData);
             res.json(supplier);
         } catch (err) {
-            res.status(400).json({ error: err.errors ? err.errors : err.message });
+            next(err);
         }
     }
 
-    static async update(req, res) {
+    static async update(req, res, next) {
         try {
             const validatedData = supplierSchema.partial().parse(req.body);
             const supplier = await SupplierService.update(req.user.pharmacyId, req.params.id, validatedData);
             res.json(supplier);
         } catch (err) {
-            res.status(400).json({ error: err.errors ? err.errors : err.message });
+            next(err);
         }
     }
 
-    static async delete(req, res) {
+    static async delete(req, res, next) {
         try {
             const result = await SupplierService.delete(req.user.pharmacyId, req.params.id);
             res.json(result);
         } catch (err) {
-            res.status(400).json({ error: err.message });
+            next(err);
         }
     }
 }

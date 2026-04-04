@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import SearchBar from './SearchBar';
+import FilterPanel from './FilterPanel';
 import PharmacyDetail from './PharmacyDetail';
+import { apiFetch } from '../utils/api';
 import 'leaflet/dist/leaflet.css';
 import {
     Navigation, X, Globe, Map as MapIcon
@@ -10,35 +12,6 @@ import {
 import { useSettings } from '../context/SettingsContext';
 
 // --- Modern High-Fidelity Icons ---
-const pharmacyIcon = (theme) => L.divIcon({
-    className: 'custom-pharmacy-icon',
-    html: `
-        <div class="marker-container ${theme}">
-            <div class="marker-shadow"></div>
-            <div class="marker-pill">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 2v20M2 12h20"/>
-                </svg>
-            </div>
-        </div>
-    `,
-    iconSize: [40, 40],
-    iconAnchor: [20, 40],
-    popupAnchor: [0, -35]
-});
-
-const userIcon = L.divIcon({
-    className: 'custom-user-icon',
-    html: `
-        <div class="user-marker">
-            <div class="user-pulse"></div>
-            <div class="user-dot"></div>
-        </div>
-    `,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15]
-});
-
 const RecenterMap = ({ coords, zoom = 14 }) => {
     const map = useMap();
     useEffect(() => {
@@ -55,12 +28,44 @@ const MapView = () => {
     const [mapCenter, setMapCenter] = useState(null);
     const [filters, setFilters] = useState({ category: 'all', minPrice: '', maxPrice: '', radius: 10 });
     const [searchResults, setSearchResults] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
     const { theme } = useSettings();
+
+    // Memoize icons to prevent re-creation on every render
+    const mapIcons = useMemo(() => ({
+        pharmacy: L.divIcon({
+            className: 'custom-pharmacy-icon',
+            html: `
+                <div class="marker-container ${theme}">
+                    <div class="marker-shadow"></div>
+                    <div class="marker-pill">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2v20M2 12h20"/>
+                        </svg>
+                    </div>
+                </div>
+            `,
+            iconSize: [40, 40],
+            iconAnchor: [20, 40],
+            popupAnchor: [0, -35]
+        }),
+        user: L.divIcon({
+            className: 'custom-user-icon',
+            html: `
+                <div class="user-marker">
+                    <div class="user-pulse"></div>
+                    <div class="user-dot"></div>
+                </div>
+            `,
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+        })
+    }), [theme]);
 
     useEffect(() => {
         fetchPharmacies();
         handleLocateMe();
-    }, []);
+    }, [filters]);
 
     const handleLocateMe = () => {
         if ("geolocation" in navigator) {
@@ -74,11 +79,16 @@ const MapView = () => {
 
 
     const fetchPharmacies = async (query = '') => {
+        setIsLoading(true);
         try {
-            let url = '/api/pharmacies';
+            const apiUrl = import.meta.env.VITE_API_URL || '';
+            let url = `${apiUrl}/api/pharmacies?search=${query}&radius=${filters.radius}&lat=${userLocation[0]}&lng=${userLocation[1]}`;
+
             if (query) {
-                url = `/api/medications/search?q=${query}&category=${filters.category}&minPrice=${filters.minPrice}&maxPrice=${filters.maxPrice}&lat=${userLocation[0]}&lng=${userLocation[1]}&radius=${filters.radius}`;
+                // If query is provided, we use the medications search endpoint which returns pharmacies
+                url = `${apiUrl}/api/medications/search?q=${query}&category=${filters.category}&minPrice=${filters.minPrice}&maxPrice=${filters.maxPrice}&lat=${userLocation[0]}&lng=${userLocation[1]}&radius=${filters.radius}`;
             }
+
             const res = await fetch(url);
             const data = await res.json();
 
@@ -87,26 +97,29 @@ const MapView = () => {
                 const uniquePharmacies = [];
                 const seenIds = new Set();
                 data.forEach(item => {
-                    if (!seenIds.has(item.pharmacy_id)) {
-                        seenIds.add(item.pharmacy_id);
+                    const pId = item.pharmacy_id || item.id;
+                    if (!seenIds.has(pId)) {
+                        seenIds.add(pId);
                         uniquePharmacies.push({
-                            id: item.pharmacy_id,
-                            name: item.pharmacy_name,
+                            id: pId,
+                            name: item.pharmacy_name || item.name,
                             lat: item.lat,
                             lng: item.lng,
                             address: item.address,
-                            phone: item.pharmacy_phone,
+                            phone: item.pharmacy_phone || item.phone,
                             open_hours: item.open_hours
                         });
                     }
                 });
                 setPharmacies(uniquePharmacies);
             } else {
-                setPharmacies(data);
+                setPharmacies(Array.isArray(data) ? data : []);
                 setSearchResults(null);
             }
         } catch (err) {
-            console.error(err);
+            console.error('Fetch Error:', err);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -117,17 +130,33 @@ const MapView = () => {
 
     return (
         <div style={{ height: '100vh', width: '100vw', position: 'relative', background: theme === 'dark' ? '#1a1c1e' : '#f8f9fa' }}>
-            {/* Top Search Bar */}
+            {/* Search and Filters */}
             <div style={{
                 position: 'fixed',
                 top: '25px',
-                left: '50%',
-                transform: 'translateX(-50%)',
+                left: '20px',
                 zIndex: 1000,
-                width: '90%',
-                maxWidth: '580px',
+                width: '320px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem'
             }}>
                 <SearchBar onSearch={fetchPharmacies} />
+                <FilterPanel filters={filters} setFilters={setFilters} />
+                {isLoading && (
+                    <div style={{
+                        background: 'rgba(255,255,255,0.8)',
+                        padding: '10px',
+                        borderRadius: '10px',
+                        textAlign: 'center',
+                        fontSize: '0.9rem',
+                        fontWeight: '600',
+                        color: 'var(--primary)',
+                        backdropFilter: 'blur(5px)'
+                    }}>
+                        جاري البحث...
+                    </div>
+                )}
             </div>
 
             <MapContainer
@@ -155,13 +184,13 @@ const MapView = () => {
                 <RecenterMap coords={mapCenter} />
 
                 {/* User Location Marker */}
-                <Marker position={userLocation} icon={userIcon} />
+                <Marker position={userLocation} icon={mapIcons.user} />
 
                 {pharmacies.map(p => (
                     <Marker
                         key={p.id}
                         position={[p.lat, p.lng]}
-                        icon={pharmacyIcon(theme)}
+                        icon={mapIcons.pharmacy}
                         eventHandlers={{
                             click: () => setSelectedPharmacy(p)
                         }}
