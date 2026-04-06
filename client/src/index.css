@@ -194,3 +194,9 @@ th {
 .fade-in {
   animation: fadeIn 0.3s ease forwards;
 }
+
+/* إصلاح تحذير Leaflet */
+:root {
+    direction: ltr;
+    writing-mode: horizontal-tb;
+}

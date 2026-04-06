@@ -1,13 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const SupplierController = require('../controllers/SupplierController');
-const { authMiddleware, pharmacyOnly } = require('../middleware/authMiddleware');
+const { authenticate, requirePharmacyOwner } = require('../middleware/authMiddleware');
 
-router.use(authMiddleware, pharmacyOnly);
-
-router.get('/', SupplierController.getAll);
-router.post('/', SupplierController.create);
-router.put('/:id', SupplierController.update);
-router.delete('/:id', SupplierController.delete);
+router.get('/test', authenticate, requirePharmacyOwner, (req, res) => {
+    res.json({ success: true, message: 'Supplier routes work!' });
+});
 
 module.exports = router;

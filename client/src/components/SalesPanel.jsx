@@ -1,172 +1,168 @@
-import React, { useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle } from 'lucide-react';
-import { useSettings } from '../context/SettingsContext';
-import { apiFetch } from '../utils/api';
+// client/src/components/SalesPanel.jsx
+import React, { useState, useEffect } from 'react';
+import { authAPI, pharmacyAPI } from '../utils/api';
 
-const SalesPanel = ({ medications, onSaleComplete }) => {
-    const { t, i18n } = useTranslation();
-    const [searchTerm, setSearchTerm] = useState('');
-    const [cart, setCart] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [success, setSuccess] = useState(false);
-    const { language } = useSettings();
+const SalesPanel = () => {
+    const [sales, setSales] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [newSale, setNewSale] = useState({
+        medication_id: '',
+        quantity: 1,
+        customer_name: '',
+        payment_method: 'cash'
+    });
 
-    const filteredMeds = medications.filter(m =>
-        (m.name.toLowerCase().includes(searchTerm.toLowerCase()) || (m.barcode && m.barcode === searchTerm)) && m.quantity > 0
-    );
-
-    const handleSearchKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            // Priority 1: Exact barcode match
-            const barcodeMatch = filteredMeds.find(m => m.barcode === searchTerm);
-            if (barcodeMatch) {
-                addToCart(barcodeMatch);
-                setSearchTerm('');
+    // جلب المبيعات
+    const fetchSales = async () => {
+        try {
+            setLoading(true);
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('الرجاء تسجيل الدخول أولاً');
                 return;
             }
-
-            // Priority 2: Only one item in filtered list
-            if (filteredMeds.length === 1) {
-                addToCart(filteredMeds[0]);
-                setSearchTerm('');
-            }
-        }
-    };
-
-    const addToCart = (med) => {
-        const existing = cart.find(item => item.id === med.id);
-        if (existing) {
-            updateQuantity(med.id, 1);
-        } else {
-            setCart([...cart, { ...med, cartQuantity: 1 }]);
-        }
-    };
-
-    const updateQuantity = (id, delta) => {
-        setCart(cart.map(item => {
-            if (item.id === id) {
-                const newQty = Math.max(1, Math.min(item.quantity, item.cartQuantity + delta));
-                return { ...item, cartQuantity: newQty };
-            }
-            return item;
-        }));
-    };
-
-    const removeFromCart = (id) => {
-        setCart(cart.filter(item => item.id !== id));
-    };
-
-    const total = cart.reduce((sum, item) => sum + (item.price * item.cartQuantity), 0);
-
-    const handleCheckout = async () => {
-        setLoading(true);
-        try {
-            await apiFetch('/api/pharmacy/sales/batch', {
-                method: 'POST',
-                body: JSON.stringify({
-                    items: cart.map(item => ({
-                        medication_id: item.id,
-                        quantity: item.cartQuantity
-                    }))
-                })
-            });
-
-            setSuccess(true);
-            setCart([]);
-            setTimeout(() => {
-                setSuccess(false);
-                onSaleComplete();
-            }, 2000);
+            
+            // مؤقتاً: عرض بيانات تجريبية
+            setSales([
+                { id: 1, medication_name: 'باراسيتامول', quantity: 2, total_price: 40, created_at: new Date().toISOString() },
+                { id: 2, medication_name: 'أموكسيسيلين', quantity: 1, total_price: 25, created_at: new Date().toISOString() }
+            ]);
+            setLoading(false);
         } catch (err) {
-            console.error('Checkout Error:', err.message);
+            setError(err.message);
+            setLoading(false);
         }
-        setLoading(false);
     };
+
+    // إنشاء بيع جديد
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            // مؤقتاً: إضافة إلى القائمة المحلية
+            const tempSale = {
+                id: Date.now(),
+                medication_name: newSale.medication_id || 'دواء تجريبي',
+                quantity: newSale.quantity,
+                total_price: newSale.quantity * 20,
+                created_at: new Date().toISOString()
+            };
+            setSales([tempSale, ...sales]);
+            setNewSale({ medication_id: '', quantity: 1, customer_name: '', payment_method: 'cash' });
+            alert('تم إضافة البيع بنجاح (تجريبي)');
+        } catch (err) {
+            setError(err.message);
+        }
+    };
+
+    useEffect(() => {
+        fetchSales();
+    }, []);
+
+    if (loading) {
+        return <div className="text-center py-8">جاري التحميل...</div>;
+    }
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '1.5rem', height: 'calc(100vh - 250px)', direction: i18n.dir() }}>
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ position: 'relative' }}>
-                    <Search size={18} style={{ position: 'absolute', [i18n.dir() === 'rtl' ? 'right' : 'left']: '1rem', top: '1rem', color: 'var(--text-muted)' }} />
-                    <input
-                        type="text"
-                        placeholder={t('dashboard.searchSale')}
-                        style={{ [i18n.dir() === 'rtl' ? 'paddingRight' : 'paddingLeft']: '2.8rem' }}
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onKeyDown={handleSearchKeyDown}
-                    />
+        <div className="p-6">
+            <h2 className="text-2xl font-bold mb-6">💵 نظام المبيعات</h2>
+            
+            {error && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                    ⚠️ {error}
                 </div>
-
-                <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
-                    {filteredMeds.map(med => (
-                        <div key={med.id} className="glass" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid var(--border)', textAlign: 'inherit' }}>
-                            <div>
-                                <h4 style={{ margin: '0 0 0.2rem' }}>{med.name}</h4>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('common.quantity')}: {med.quantity}</div>
-                                <div style={{ fontSize: '1.1rem', fontWeight: '800', margin: '0.5rem 0', color: 'var(--primary)' }}>{med.price} {t('common.currency')}</div>
-                            </div>
-                            <button
-                                onClick={() => addToCart(med)}
-                                className="btn-primary"
-                                style={{ width: '100%', padding: '0.5rem', fontSize: '0.85rem' }}
+            )}
+            
+            {/* نموذج إضافة بيع */}
+            <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+                <h3 className="text-xl font-semibold mb-4">بيع جديد</h3>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">اسم الدواء</label>
+                            <input
+                                type="text"
+                                value={newSale.medication_id}
+                                onChange={(e) => setNewSale({...newSale, medication_id: e.target.value})}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="أدخل اسم الدواء"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">الكمية</label>
+                            <input
+                                type="number"
+                                value={newSale.quantity}
+                                onChange={(e) => setNewSale({...newSale, quantity: parseInt(e.target.value)})}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                min="1"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">اسم العميل</label>
+                            <input
+                                type="text"
+                                value={newSale.customer_name}
+                                onChange={(e) => setNewSale({...newSale, customer_name: e.target.value})}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="اختياري"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">طريقة الدفع</label>
+                            <select
+                                value={newSale.payment_method}
+                                onChange={(e) => setNewSale({...newSale, payment_method: e.target.value})}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
-                                {t('dashboard.addToCart')}
-                            </button>
+                                <option value="cash">نقدي</option>
+                                <option value="card">بطاقة بنكية</option>
+                                <option value="insurance">تأمين صحي</option>
+                            </select>
                         </div>
-                    ))}
-                </div>
-            </div>
-
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', border: '1px solid var(--primary)', textAlign: 'inherit' }}>
-                <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                    <ShoppingCart size={20} />
-                    {t('dashboard.cartTitle')}
-                </h3>
-
-                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                    {cart.length === 0 ? (
-                        <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>{t('dashboard.emptyCart')}</p>
-                    ) : (
-                        cart.map(item => (
-                            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem', borderBottom: '1px solid var(--border)' }}>
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{item.name}</div>
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{item.price} × {item.cartQuantity}</div>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <button onClick={() => updateQuantity(item.id, -1)} style={{ padding: '4px', background: 'var(--bg-dark)', border: 'none', borderRadius: '4px', cursor: 'pointer' }}><Minus size={14} /></button>
-                                    <span style={{ minWidth: '20px', textAlign: 'center' }}>{item.cartQuantity}</span>
-                                    <button onClick={() => updateQuantity(item.id, 1)} style={{ padding: '4px', background: 'var(--bg-dark)', border: 'none', borderRadius: '4px', cursor: 'pointer' }}><Plus size={14} /></button>
-                                    <button onClick={() => removeFromCart(item.id)} style={{ padding: '4px', color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer' }}><Trash2 size={14} /></button>
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
-
-                <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '2px dashed var(--border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', fontWeight: '800', marginBottom: '1rem' }}>
-                        <span>{t('common.total')}:</span>
-                        <span>{total} {t('common.currency')}</span>
                     </div>
-                    {success ? (
-                        <div style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '1rem', borderRadius: '12px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                            <CheckCircle size={20} />
-                            <span>{t('dashboard.saleSuccess')}</span>
-                        </div>
-                    ) : (
-                        <button
-                            disabled={cart.length === 0 || loading}
-                            onClick={handleCheckout}
-                            className="btn-primary"
-                            style={{ width: '100%', padding: '1rem' }}
-                        >
-                            {loading ? t('common.processing') : t('dashboard.confirmSale')}
-                        </button>
-                    )}
+                    <button
+                        type="submit"
+                        className="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition"
+                    >
+                        إتمام البيع
+                    </button>
+                </form>
+            </div>
+            
+            {/* قائمة المبيعات */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                <div className="px-6 py-4 bg-gray-50 border-b">
+                    <h3 className="text-xl font-semibold">آخر المبيعات</h3>
                 </div>
+                {sales.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">لا توجد مبيعات بعد</div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">الدواء</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">الكمية</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">السعر الإجمالي</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">التاريخ</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                                {sales.map((sale) => (
+                                    <tr key={sale.id}>
+                                        <td className="px-6 py-4">{sale.medication_name}</td>
+                                        <td className="px-6 py-4">{sale.quantity}</td>
+                                        <td className="px-6 py-4">{sale.total_price} درهم</td>
+                                        <td className="px-6 py-4">{new Date(sale.created_at).toLocaleDateString()}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
         </div>
     );

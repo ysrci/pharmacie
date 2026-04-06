@@ -1,64 +1,207 @@
-const MedicationService = require('../services/MedicationService');
-const { medicationSchema, batchSchema } = require('../utils/validation');
+const db = require('../db/pool');
 
 class MedicationController {
-    static async getMyMedications(req, res, next) {
+    // البحث عن الأدوية
+    async searchMedications(req, res) {
         try {
-            const { limit = 20, offset = 0, search = '' } = req.query;
-            const result = await MedicationService.getAllByPharmacy(req.user.pharmacyId, parseInt(limit), parseInt(offset), search);
-            res.json(result);
-        } catch (err) {
-            next(err);
+            const { search, category, minPrice, maxPrice } = req.query;
+            
+            let query = `
+                SELECT DISTINCT 
+                    m.id, m.name, m.generic_name, m.category, 
+                    MIN(mb.price) as min_price,
+                    COUNT(mb.id) as pharmacies_count
+                FROM medications m
+                JOIN medication_batches mb ON m.id = mb.medication_id
+                WHERE mb.quantity > 0 AND mb.expiry_date > CURRENT_DATE
+            `;
+            
+            const params = [];
+            let paramIndex = 1;
+            
+            if (search) {
+                query += ` AND (m.name ILIKE $${paramIndex} OR m.generic_name ILIKE $${paramIndex})`;
+                params.push(`%${search}%`);
+                paramIndex++;
+            }
+            
+            if (category && category !== 'all') {
+                query += ` AND m.category = $${paramIndex}`;
+                params.push(category);
+                paramIndex++;
+            }
+            
+            if (minPrice) {
+                query += ` AND mb.price >= $${paramIndex}`;
+                params.push(parseFloat(minPrice));
+                paramIndex++;
+            }
+            
+            if (maxPrice) {
+                query += ` AND mb.price <= $${paramIndex}`;
+                params.push(parseFloat(maxPrice));
+                paramIndex++;
+            }
+            
+            query += ` GROUP BY m.id ORDER BY m.name LIMIT 50`;
+            
+            const result = await db.query(query, params);
+            
+            res.json({
+                success: true,
+                count: result.rows.length,
+                data: result.rows
+            });
+        } catch (error) {
+            console.error('Search medications error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to search medications'
+            });
         }
     }
-
-    static async addMedication(req, res, next) {
+    
+    // الحصول على دواء بواسطة ID
+    async getMedicationById(req, res) {
         try {
-            const validatedData = medicationSchema.parse(req.body);
-            const med = await MedicationService.addMedication(req.user.id, req.user.pharmacyId, validatedData);
-            res.json(med);
-        } catch (err) {
-            next(err);
+            const { id } = req.params;
+            
+            const query = `
+                SELECT m.*, 
+                    json_agg(DISTINCT jsonb_build_object(
+                        'pharmacy_id', p.id,
+                        'pharmacy_name', p.name,
+                        'price', mb.price,
+                        'quantity', mb.quantity,
+                        'expiry_date', mb.expiry_date
+                    )) as pharmacies
+                FROM medications m
+                JOIN medication_batches mb ON m.id = mb.medication_id
+                JOIN pharmacies p ON mb.pharmacy_id = p.id
+                WHERE m.id = $1 AND mb.quantity > 0
+                GROUP BY m.id
+            `;
+            
+            const result = await db.query(query, [id]);
+            
+            if (result.rows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Medication not found'
+                });
+            }
+            
+            res.json({
+                success: true,
+                data: result.rows[0]
+            });
+        } catch (error) {
+            console.error('Get medication error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to fetch medication'
+            });
         }
     }
-
-    static async updateMedication(req, res, next) {
+    
+    // إنشاء دواء جديد
+    async createMedication(req, res) {
         try {
-            const validatedData = medicationSchema.partial().parse(req.body);
-            const med = await MedicationService.updateMedication(req.user.id, req.user.pharmacyId, req.params.id, validatedData);
-            res.json(med);
-        } catch (err) {
-            next(err);
+            const { name, generic_name, category, description } = req.body;
+            
+            if (!name || !category) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Name and category are required'
+                });
+            }
+            
+            const query = `
+                INSERT INTO medications (name, generic_name, category, description)
+                VALUES ($1, $2, $3, $4)
+                RETURNING *
+            `;
+            
+            const result = await db.query(query, [name, generic_name, category, description]);
+            
+            res.status(201).json({
+                success: true,
+                data: result.rows[0]
+            });
+        } catch (error) {
+            console.error('Create medication error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to create medication'
+            });
         }
     }
-
-    static async deleteMedication(req, res, next) {
+    
+    // تحديث دواء
+    async updateMedication(req, res) {
         try {
-            const result = await MedicationService.deleteMedication(req.user.pharmacyId, req.params.id);
-            res.json(result);
-        } catch (err) {
-            next(err);
+            const { id } = req.params;
+            const { name, generic_name, category, description } = req.body;
+            
+            const query = `
+                UPDATE medications 
+                SET name = COALESCE($1, name),
+                    generic_name = COALESCE($2, generic_name),
+                    category = COALESCE($3, category),
+                    description = COALESCE($4, description),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $5
+                RETURNING *
+            `;
+            
+            const result = await db.query(query, [name, generic_name, category, description, id]);
+            
+            if (result.rows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Medication not found'
+                });
+            }
+            
+            res.json({
+                success: true,
+                data: result.rows[0]
+            });
+        } catch (error) {
+            console.error('Update medication error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to update medication'
+            });
         }
     }
-
-    static async addBatch(req, res, next) {
+    
+    // حذف دواء
+    async deleteMedication(req, res) {
         try {
-            const validatedData = batchSchema.parse(req.body);
-            const result = await MedicationService.addBatch(req.user.id, req.user.pharmacyId, req.params.id, validatedData);
-            res.json(result);
-        } catch (err) {
-            next(err);
-        }
-    }
-
-    static async search(req, res, next) {
-        try {
-            const results = await MedicationService.searchMedications(req.query);
-            res.json(results);
-        } catch (err) {
-            next(err);
+            const { id } = req.params;
+            
+            const result = await db.query('DELETE FROM medications WHERE id = $1 RETURNING id', [id]);
+            
+            if (result.rows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Medication not found'
+                });
+            }
+            
+            res.json({
+                success: true,
+                message: 'Medication deleted successfully'
+            });
+        } catch (error) {
+            console.error('Delete medication error:', error);
+            res.status(500).json({
+                success: false,
+                error: 'Failed to delete medication'
+            });
         }
     }
 }
 
-module.exports = MedicationController;
+module.exports = new MedicationController();

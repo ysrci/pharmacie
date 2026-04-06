@@ -1,12 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const SaleController = require('../controllers/SaleController');
-const { authMiddleware, pharmacyOnly } = require('../middleware/authMiddleware');
+const { authenticate, requirePharmacyOwner } = require('../middleware/authMiddleware');
 
-router.use(authMiddleware, pharmacyOnly);
-router.post('/', SaleController.createSale);
-router.post('/batch', SaleController.completeBatchSale);
-router.get('/', SaleController.getHistory);
-router.get('/history', SaleController.getHistory);
+// مؤقتاً: مسار بسيط للاختبار
+router.get('/test', authenticate, requirePharmacyOwner, (req, res) => {
+    res.json({ success: true, message: 'Sales routes work!' });
+});
 
 module.exports = router;

@@ -1,113 +1,88 @@
+// client/src/components/StatsCharts.jsx
 import React from 'react';
-import {
-    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-    BarChart, Bar, Cell, AreaChart, Area
-} from 'recharts';
-import { useSettings } from '../context/SettingsContext';
 
-const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
+const StatsCharts = ({ stats }) => {
+    if (!stats) {
         return (
-            <div style={{ backgroundColor: 'var(--bg-card)', padding: '10px', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-                <p style={{ fontWeight: 'bold', marginBottom: '5px' }}>{label}</p>
-                {payload.map((entry, index) => (
-                    <p key={index} style={{ color: entry.color, fontSize: '0.9rem' }}>
-                        {entry.name}: {entry.value}
-                    </p>
-                ))}
+            <div className="text-center py-8 text-gray-500">
+                لا توجد بيانات إحصائية متاحة
             </div>
         );
     }
-    return null;
-};
-
-export const SalesLineChart = ({ data }) => {
-    const { language } = useSettings();
-    const isAr = language === 'ar';
 
     return (
-        <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                    <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                    </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                <XAxis
-                    dataKey="date"
-                    reversed={isAr}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
-                />
-                <YAxis
-                    orientation={isAr ? 'right' : 'left'}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: 'var(--text-muted)', fontSize: 12 }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend verticalAlign="top" align={isAr ? 'left' : 'right'} iconType="circle" />
-                <Area
-                    type="monotone"
-                    name={isAr ? 'المبيعات' : 'Sales'}
-                    dataKey="sales"
-                    stroke="#2563eb"
-                    strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#colorSales)"
-                />
-                <Area
-                    type="monotone"
-                    name={isAr ? 'الأرباح' : 'Profit'}
-                    dataKey="profit"
-                    stroke="#10b981"
-                    strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#colorProfit)"
-                />
-            </AreaChart>
-        </ResponsiveContainer>
+        <div className="space-y-6">
+            <h3 className="text-xl font-semibold mb-4">📊 الإحصائيات والتحليلات</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* بطاقة المبيعات */}
+                <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-6">
+                    <div className="text-4xl mb-2">💰</div>
+                    <div className="text-3xl font-bold">{stats.total_sales_today || 0} درهم</div>
+                    <div className="text-sm opacity-90">إجمالي مبيعات اليوم</div>
+                </div>
+                
+                {/* بطاقة العملاء */}
+                <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-6">
+                    <div className="text-4xl mb-2">👥</div>
+                    <div className="text-3xl font-bold">{stats.total_customers || 0}</div>
+                    <div className="text-sm opacity-90">إجمالي العملاء</div>
+                </div>
+                
+                {/* بطاقة الأدوية */}
+                <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6">
+                    <div className="text-4xl mb-2">💊</div>
+                    <div className="text-3xl font-bold">{stats.total_medications || 0}</div>
+                    <div className="text-sm opacity-90">الأدوية المختلفة</div>
+                </div>
+                
+                {/* بطاقة المخزون */}
+                <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg p-6">
+                    <div className="text-4xl mb-2">📦</div>
+                    <div className="text-3xl font-bold">{stats.total_stock || 0}</div>
+                    <div className="text-sm opacity-90">إجمالي القطع في المخزون</div>
+                </div>
+            </div>
+            
+            {/* معلومات إضافية */}
+            <div className="bg-gray-50 rounded-lg p-6 mt-6">
+                <h4 className="font-semibold text-gray-700 mb-3">معلومات إضافية</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div className="flex justify-between">
+                        <span className="text-gray-600">متوسط سعر الدواء:</span>
+                        <span className="font-medium">{stats.avg_price || 0} درهم</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="text-gray-600">أدوية تنتهي قريباً (30 يوماً):</span>
+                        <span className="font-medium text-red-500">{stats.expiring_soon || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="text-gray-600">أدوية منخفضة المخزون (أقل من 50):</span>
+                        <span className="font-medium text-orange-500">{stats.low_stock || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="text-gray-600">آخر تحديث:</span>
+                        <span className="font-medium">{new Date().toLocaleDateString('ar-MA')}</span>
+                    </div>
+                </div>
+            </div>
+            
+            {/* نصائح */}
+            {stats.expiring_soon > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                        <span className="text-yellow-600 text-xl ml-3">⚠️</span>
+                        <div>
+                            <h5 className="font-semibold text-yellow-800">تنبيه: أدوية تنتهي قريباً</h5>
+                            <p className="text-sm text-yellow-700">
+                                يوجد {stats.expiring_soon} دواء(أدوية) تنتهي صلاحيتها خلال 30 يوماً. يرجى مراجعة المخزون.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
 
-export const TopProductsChart = ({ data }) => {
-    const { language } = useSettings();
-    const isAr = language === 'ar';
-
-    return (
-        <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--border)" />
-                <XAxis type="number" hide />
-                <YAxis
-                    dataKey="name"
-                    type="category"
-                    orientation={isAr ? 'right' : 'left'}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: 'var(--text-main)', fontSize: 13, fontWeight: 500 }}
-                    width={100}
-                />
-                <Tooltip cursor={{ fill: 'rgba(0,0,0,0.05)' }} content={<CustomTooltip />} />
-                <Bar
-                    dataKey="sold"
-                    name={isAr ? 'الكمية المباعة' : 'Sold Qty'}
-                    fill="#3b82f6"
-                    radius={[0, 10, 10, 0]}
-                    barSize={20}
-                >
-                    {data.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef'][index % 5]} />
-                    ))}
-                </Bar>
-            </BarChart>
-        </ResponsiveContainer>
-    );
-};
+export default StatsCharts;
