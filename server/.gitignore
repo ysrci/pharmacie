@@ -1,0 +1,46 @@
+# server/.gitignore
+
+# متغيرات البيئة - مهم جداً!
+.env
+.env.local
+.env.*.local
+
+# مجلدات الاعتماديات
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ملفات البناء
+dist/
+build/
+*.tsbuildinfo
+
+# ملفات قاعدة البيانات المحلية
+*.sqlite
+*.db
+
+# ملفات السجلات
+logs/
+*.log
+
+# ملفات مؤقتة
+*.tmp
+.DS_Store
+Thumbs.db
+
+# ملفات IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ملفات الاختبار
+coverage/
+.nyc_output/
+
+# ملفات سرية
+*.pem
+*.key
+*.cert

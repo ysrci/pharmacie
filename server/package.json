@@ -1,24 +1,25 @@
 {
-  "name": "saydaliya-server",
-  "version": "2.0.0",
-  "description": "Saydaliya SaaS Pharmacy API — PostgreSQL native",
+  "name": "pharmacy-server",
+  "version": "1.0.0",
+  "description": "Pharmacy Management System Backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
-    "schema": "psql $DATABASE_URL -f schema.sql",
-    "seed": "node seed.js"
+    "dev": "nodemon server.js",
+    "generate-secret": "node generate-secret.js"
   },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
+    "bcrypt": "^5.1.0",
     "cors": "^2.8.5",
-    "dotenv": "^17.3.1",
+    "dotenv": "^16.3.0",
     "express": "^4.18.2",
-    "express-rate-limit": "^8.3.1",
-    "helmet": "^8.1.0",
+    "express-rate-limit": "^7.1.0",
+    "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.1",
-    "pg": "^8.20.0",
-    "zod": "^4.3.6"
+    "morgan": "^1.10.0",
+    "pg": "^8.11.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
   }
 }

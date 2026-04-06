@@ -1,68 +1,76 @@
-const { z } = require('zod');
+// server/src/utils/validation.js
+const Joi = require('joi'); // npm install joi
 
-const registerSchema = z.object({
-    name: z.string().min(2),
-    email: z.string().email(),
-    password: z.string().min(6),
-    role: z.enum(['user', 'pharmacy']).optional(),
-    phone: z.string().optional(),
-    pharmacyData: z.object({
-        name: z.string(),
-        address: z.string(),
-        lat: z.number(),
-        lng: z.number(),
-        open_hours: z.string().optional()
-    }).optional()
+// ✅ مخطط التحقق من البحث
+const searchQuerySchema = Joi.object({
+    lat: Joi.number().min(-90).max(90).required(),
+    lng: Joi.number().min(-180).max(180).required(),
+    radius: Joi.number().min(1).max(50000).default(5000),
+    medicationName: Joi.string().max(100).pattern(/^[a-zA-Z0-9\s\-]+$/).optional(),
+    category: Joi.string().max(50).optional(),
+    minPrice: Joi.number().min(0).optional(),
+    maxPrice: Joi.number().min(0).optional()
 });
 
-const loginSchema = z.object({
-    email: z.string().email(),
-    password: z.string()
+// ✅ مخطط التحقق من تسجيل الدخول
+const loginSchema = Joi.object({
+    email: Joi.string().email().required(),
+    password: Joi.string().min(6).max(100).required()
 });
 
-const medicationSchema = z.object({
-    name: z.string().min(1),
-    dosage: z.string().optional().nullable(),
-    barcode: z.string().optional().nullable(),
-    cost_price: z.number().nonnegative().optional(),
-    price: z.number().positive(),
-    quantity: z.number().int().nonnegative().optional(),
-    min_stock_level: z.number().int().nonnegative().optional(),
-    category: z.enum(['supplement', 'prescription', 'otc', 'beauty', 'equipment']),
-    description: z.string().optional(),
-    expiry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable().or(z.literal(''))
+// ✅ مخطط التحقق من التسجيل
+const registerSchema = Joi.object({
+    email: Joi.string().email().required(),
+    password: Joi.string().min(8).max(100).required(),
+    name: Joi.string().min(2).max(100).required(),
+    phone: Joi.string().pattern(/^[0-9+\-\s()]+$/).optional(),
+    pharmacyName: Joi.string().min(2).max(200).required(),
+    pharmacyAddress: Joi.string().min(5).max(500).required()
 });
 
-const saleSchema = z.object({
-    medication_id: z.number().int().positive(),
-    quantity: z.number().int().positive(),
-    customer_id: z.number().int().positive().optional().nullable()
+// ✅ مخطط التحقق من إضافة دواء
+const medicationSchema = Joi.object({
+    name: Joi.string().min(2).max(200).required(),
+    genericName: Joi.string().min(2).max(200).optional(),
+    category: Joi.string().max(50).required(),
+    description: Joi.string().max(1000).optional(),
+    batchNumber: Joi.string().max(50).required(),
+    expiryDate: Joi.date().greater('now').required(),
+    quantity: Joi.number().integer().min(1).max(10000).required(),
+    price: Joi.number().min(0).max(100000).required()
 });
 
-const batchSaleSchema = z.object({
-    items: z.array(saleSchema).min(1),
-});
+// ✅ وظيفة التحقق من صحة المدخلات
+const validate = (schema, data) => {
+    const { error, value } = schema.validate(data, { abortEarly: false });
+    if (error) {
+        const errors = error.details.map(detail => detail.message);
+        return { valid: false, errors };
+    }
+    return { valid: true, value };
+};
 
-const batchSchema = z.object({
-    batch_number: z.string().min(1),
-    expiry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    quantity: z.number().int().positive()
-});
-
-const supplierSchema = z.object({
-    name: z.string().min(1),
-    contact_name: z.string().optional(),
-    email: z.string().email().optional().or(z.literal('')),
-    phone: z.string().optional(),
-    address: z.string().optional()
-});
+// ✅ Middleware للتحقق من صحة الطلبات
+const validateRequest = (schema, property = 'body') => {
+    return (req, res, next) => {
+        const { valid, errors, value } = validate(schema, req[property]);
+        if (!valid) {
+            return res.status(400).json({
+                success: false,
+                error: 'Validation failed',
+                details: errors
+            });
+        }
+        req[property] = value; // استبدال البيانات بالبيانات المنقاة
+        next();
+    };
+};
 
 module.exports = {
-    registerSchema,
+    searchQuerySchema,
     loginSchema,
+    registerSchema,
     medicationSchema,
-    saleSchema,
-    batchSaleSchema,
-    batchSchema,
-    supplierSchema
+    validate,
+    validateRequest
 };

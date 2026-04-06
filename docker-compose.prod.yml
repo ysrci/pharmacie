@@ -1,0 +1,53 @@
+# docker-compose.prod.yml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgis/postgis:15-3.4
+    container_name: pharmacy_db_prod
+    environment:
+      POSTGRES_DB: pharmacy_prod
+      POSTGRES_USER: pharmacy_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - pharmacy_network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.prod
+    container_name: pharmacy_backend_prod
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      JWT_SECRET: ${JWT_SECRET}
+      DB_PASSWORD: ${DB_PASSWORD}
+    depends_on:
+      - postgres
+    networks:
+      - pharmacy_network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.prod
+    container_name: pharmacy_frontend_prod
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+    networks:
+      - pharmacy_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  pharmacy_network:
+    driver: bridge
